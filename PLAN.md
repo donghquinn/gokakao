@@ -50,23 +50,14 @@ A Go client library for the server-side Kakao Developers REST APIs
    ```
    Platform APIs live in one package with a service per product, like go-github (`c.Local.SearchAddress(...)`). The ads APIs are big and change on their own schedule, so they get subpackages.
 
-5. **Auth model.** The API surface follows Kakao's four credential types, so callers can't send the wrong one:
+5. **Auth model.** App credentials live on the `Client`. A user API that can run either as the user or as the admin takes a `Subject`: `kakao.AccessToken(tok)` sends a Bearer token, and `kakao.AsAdmin(userID)` sends the admin key plus `target_id_type`/`target_id`. Endpoints that accept only one credential take it directly.
    ```go
-   c := kakao.NewClient(
-       kakao.WithRESTKey(restKey),
-       kakao.WithAdminKey(adminKey),       // optional
-       kakao.WithClientSecret(secret),     // optional
-       kakao.WithHTTPClient(hc),           // optional
-   )
-   // App-key APIs hang off *Client
-   c.Local.SearchKeyword(ctx, &kakao.KeywordSearchParams{Query: "판교 카페"})
-   c.Admin.Users.Get(ctx, userID)               // uses the admin key
-   // User-token APIs: a cheap, per-request view, safe for many tenants
-   u := c.WithUserToken(accessToken)
-   u.User.Me(ctx, nil)
-   u.Message.SendToMe(ctx, template.Text{...})
+   c, _ := kakao.NewClient(kakao.WithRESTKey(restKey), kakao.WithAdminKey(adminKey))
+   c.Map.SearchKeyword(ctx, "판교 카페", nil)            // REST key
+   c.User.Me(ctx, kakao.AccessToken(tok), nil)          // as the user
+   c.User.Unlink(ctx, kakao.AsAdmin(userID))            // as admin
+   c.User.Users(ctx, ids, nil)                          // admin only
    ```
-   An endpoint that accepts either a Bearer token or an admin key (logout, unlink, me, shipping address, channel relationship) is reachable from both sides. The admin-side version takes a `TargetID`.
 
 6. **Transport core** (`do(ctx, req, out)`):
    - Encodes form, query, or JSON bodies per endpoint. `template_object` and the calendar `event` are JSON strings inside form fields.
@@ -83,7 +74,7 @@ A Go client library for the server-side Kakao Developers REST APIs
 |---|---|---|
 | **0. Foundation** ✅ | Fix the module path. Add LICENSE (MIT or Apache-2.0), README, CONTRIBUTING. Build the transport core, the error types, and the `kakaotest` fake server. CI: test with `-race` on the last two Go versions, golangci-lint, govulncheck, coverage. | — |
 | **1. Quick wins** ✅ | Daum Search, Kakao Map Local (address, coord, transcoord, keyword, category), static map, routing. These use only the REST key, so they test the core early. | v0.1.0 |
-| **2. Kakao Login** | Authorize/logout URL builders with `state`, `nonce`, and `prompt`. Token exchange and refresh. OIDC `id_token` verification (JWKS cache, RS256, iss/aud/nonce checks). Token info, me, update profile, logout, unlink, app users, user ID iterator, shipping address v2, consents and terms. TokenSource. Example login server. | v0.2.0 |
+| **2. Kakao Login** ✅ | Authorize/logout URL builders with `state`, `nonce`, and `prompt`. Token exchange and refresh. OIDC `id_token` verification (JWKS cache, RS256, iss/aud/nonce checks). Token info, me, update profile, logout, unlink, app users, user ID iterator, shipping address v2, consents and terms. TokenSource. Example login server. | v0.2.0 |
 | **3. Talk** | `template/` builders for all default template types. Message send to self and to friends (default, custom, scrap). Social: profile, friends iterator, multi-profiles. Channel: relationship v2 single and multi, customer files. | v0.3.0 |
 | **4. Calendar + Push** | Talk Calendar: user calendars and events, public events, follow, subscribable calendars, holidays. Push v2: register, tokens, deregister, send, plus typed `for_apns` / `for_fcm` payloads. | v0.4.0 |
 | **5. Webhooks** | `webhook.UnlinkHandler`, `ChannelHandler`, `ShareHandler` (all verify `Authorization: KakaoAK <primary key>`). An SSF handler that verifies the SET JWT against `/.well-known/ssf-configuration` JWKS, parses typed events (RISC, CAEP, OAuth, KAKAO), and returns 202 on success and 400 on failure. Handlers answer within 3 s by handing work off. | v0.5.0 |

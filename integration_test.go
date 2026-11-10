@@ -58,3 +58,26 @@ func TestIntegration_Map(t *testing.T) {
 		t.Errorf("SearchCategory: %v", err)
 	}
 }
+
+// TestIntegration_User needs a user access token, e.g. from examples/login:
+//
+//	KAKAO_REST_KEY=... KAKAO_ACCESS_TOKEN=... go test -tags=integration -run Integration_User -count=1 .
+func TestIntegration_User(t *testing.T) {
+	c := integrationClient(t)
+	tok := os.Getenv("KAKAO_ACCESS_TOKEN")
+	if tok == "" {
+		t.Skip("KAKAO_ACCESS_TOKEN not set")
+	}
+	ctx := t.Context()
+	info, err := c.User.TokenInfo(ctx, tok)
+	if err != nil || info.ID == 0 {
+		t.Fatalf("TokenInfo: %v, %+v", err, info)
+	}
+	u, err := c.User.Me(ctx, AccessToken(tok), nil)
+	if err != nil || u.ID != info.ID {
+		t.Errorf("Me: %v, %+v", err, u)
+	}
+	if _, err := c.User.Scopes(ctx, AccessToken(tok)); err != nil {
+		t.Errorf("Scopes: %v", err)
+	}
+}

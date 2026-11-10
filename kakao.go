@@ -68,7 +68,12 @@ type Client struct {
 	userAgent    string
 	retry        *RetryPolicy
 	maxBodySize  int64
+	now          func() time.Time
 
+	// Auth implements the Kakao Login OAuth 2.0 and OpenID Connect flows.
+	Auth *AuthService
+	// User calls the Kakao Login user APIs.
+	User *UserService
 	// Search calls the Daum Search API.
 	Search *SearchService
 	// Map calls the Kakao Map REST API.
@@ -85,12 +90,15 @@ func NewClient(opts ...Option) (*Client, error) {
 		baseURLs:    defaultBaseURLs,
 		userAgent:   "gokakao/" + Version,
 		maxBodySize: 16 << 20,
+		now:         time.Now,
 	}
 	for _, opt := range opts {
 		if err := opt(c); err != nil {
 			return nil, err
 		}
 	}
+	c.Auth = &AuthService{c: c}
+	c.User = &UserService{c: c}
 	c.Search = &SearchService{c: c}
 	c.Map = &MapService{c: c}
 	return c, nil

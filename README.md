@@ -33,6 +33,41 @@ c, err := kakao.NewClient(
 )
 ```
 
+### Kakao Login
+
+```go
+// 1. Redirect the user to Kakao.
+verifier := kakao.GenerateVerifier()
+loginURL, err := c.Auth.AuthCodeURL("https://example.com/callback", &kakao.AuthCodeOptions{
+	State: state, Nonce: nonce, CodeChallenge: kakao.S256Challenge(verifier),
+})
+
+// 2. In the callback, exchange the code and verify the ID token.
+tok, err := c.Auth.Exchange(ctx, code, "https://example.com/callback", &kakao.ExchangeOptions{CodeVerifier: verifier})
+claims, err := c.Auth.VerifyIDToken(ctx, tok.IDToken, nonce) // signature, iss, aud, exp, nonce
+
+// 3. Call user APIs as the user, or as admin for any linked user.
+me, err := c.User.Me(ctx, kakao.AccessToken(tok.AccessToken), nil)
+_, err = c.User.Unlink(ctx, kakao.AsAdmin(userID))
+
+// Keep tokens fresh; onRefresh persists rotated tokens.
+ts := c.Auth.TokenSource(tok, func(t *kakao.Token) { save(t) })
+fresh, err := ts.Token(ctx)
+```
+
+See [examples/login](examples/login/main.go) for a complete server.
+
+| Method | Kakao API |
+|---|---|
+| `Auth.AuthCodeURL`, `Auth.Exchange`, `Auth.Refresh`, `Auth.LogoutURL` | 인가 코드 받기, 토큰 받기/갱신, 카카오계정과 함께 로그아웃 |
+| `Auth.VerifyIDToken`, `Auth.IDTokenInfo` | ID 토큰 유효성 검증, ID 토큰 정보 조회 |
+| `User.Me`, `User.Users`, `User.UserIDs`, `User.AllUserIDs` | 사용자 정보 (단건/여러 명), 사용자 목록 |
+| `User.Logout`, `User.Unlink`, `User.TokenInfo`, `User.Signup` | 로그아웃, 연결 끊기, 토큰 정보, 수동 연결 |
+| `User.UpdateProfile`, `User.ShippingAddress` | 사용자 프로퍼티 저장, 배송지 |
+| `User.Scopes`, `User.RevokeScopes` | 동의 내역 조회, 동의 철회 |
+| `User.ServiceTerms`, `User.RevokeServiceTerms`, `User.AgreeServiceTerms` | 서비스 약관 (카카오싱크) |
+| `User.OIDCUserInfo` | OIDC 사용자 정보 |
+
 ### Daum Search
 
 ```go
@@ -87,7 +122,7 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 |---|---|
 | Daum Search | ✅ |
 | Kakao Map (local search, coordinates, routing, static map) | ✅ |
-| Kakao Login / OpenID Connect | planned (v0.2) |
+| Kakao Login / OpenID Connect | ✅ |
 | KakaoTalk Message, Social, Channel | planned (v0.3) |
 | Talk Calendar, Push | planned (v0.4) |
 | Webhooks | planned (v0.5) |

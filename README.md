@@ -101,6 +101,36 @@ rel, err := c.Channel.Relations(ctx, kakao.AsAdmin(userID), "_ZeUTxl")
 
 Templates: `template.Feed`, `List`, `Commerce`, `Location`, `Text`, `Calendar`.
 
+### Talk Calendar and Push
+
+```go
+id, err := c.Calendar.CreateEvent(ctx, accessToken, kakao.PrimaryCalendar, kakao.NewEvent{
+	Title: "회의",
+	Time: kakao.EventTime{
+		StartAt: kakao.FormatEventTime(start), EndAt: kakao.FormatEventTime(start.Add(time.Hour)),
+	},
+	Reminders: []int{15},
+})
+for e, err := range c.Calendar.AllEvents(ctx, accessToken, kakao.EventsQuery{Preset: kakao.PresetThisWeek}) { ... }
+
+// Updates keep omitted fields; list fields to remove in Clear.
+title := "회의 (변경)"
+_, err = c.Calendar.UpdateEvent(ctx, accessToken, id, kakao.EventUpdate{
+	Changes: &kakao.EventChanges{Title: &title, Clear: []string{"location"}},
+})
+
+err = c.Push.Send(ctx, []int64{userID}, kakao.PushMessage{
+	FCM: &kakao.FCMMessage{Notification: map[string]any{"title": "새 댓글", "body": "확인해 보세요"}},
+}, nil)
+```
+
+| Service | Methods |
+|---|---|
+| `Calendar` (user) | `Calendars`, `CreateCalendar`, `UpdateCalendar`, `DeleteCalendar`, `CreateEvent`, `Events`, `AllEvents`, `Event`, `UpdateEvent`, `DeleteEvent`, `UpdateGuestEvent`, `FollowPublicEvent`, `Subscribe`, `Unsubscribe` |
+| `Calendar` (admin) | `CreatePublicEvent`, `PublicEvents`, `PublicEvent`, `UpdatePublicEvent`, `DeletePublicEvent`, `SubscribableCalendars`, `Holidays` |
+| `Calendar` (tasks) | `CreateTask`, `Tasks`, `Task`, `TaskRecords`, `UpdateTask`, `CompleteTask`, `DeleteTask` |
+| `Push` (admin) | `Register`, `Tokens`, `Deregister`, `Send` |
+
 ### Daum Search
 
 ```go
@@ -157,7 +187,7 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 | Kakao Map (local search, coordinates, routing, static map) | ✅ |
 | Kakao Login / OpenID Connect | ✅ |
 | KakaoTalk Message, Social, Channel | ✅ |
-| Talk Calendar, Push | planned (v0.4) |
+| Talk Calendar (incl. tasks), Push | ✅ |
 | Webhooks | planned (v0.5) |
 | Business Auth | planned (v0.6) |
 | Kakao Moment, Keyword Ad | planned (after v1.0) |

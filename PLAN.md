@@ -13,7 +13,7 @@ A Go client library for the server-side Kakao Developers REST APIs
 | 2 | KakaoTalk Message | kapi | user token | send to self / to friends × default / custom / scrap template |
 | 3 | KakaoTalk Social | kapi | user token, admin key | my profile, friends list, multi-user profiles |
 | 4 | KakaoTalk Channel | kapi | user token, admin key, REST key | channel relationship (single / multi), customer files (create, list, add users, remove users) |
-| 5 | Talk Calendar | kapi | user token, admin key | calendars CRUD, events CRUD, public events, follow, subscribable calendars, holidays |
+| 5 | Talk Calendar | kapi | user token, admin key | calendars CRUD, events CRUD, guest events, public events, follow, subscriptions, holidays, tasks |
 | 6 | Push Notification v2 | kapi | admin key | register, tokens, deregister, send |
 | 7 | Kakao Map (Local) | dapi | REST key | address search, coord→region, coord→address, transcoord, keyword search, category search, walk/bicycle/transit routing, static map |
 | 8 | Daum Search | dapi | REST key | web, vclip, image, blog, book (v3), cafe |
@@ -76,7 +76,7 @@ A Go client library for the server-side Kakao Developers REST APIs
 | **1. Quick wins** ✅ | Daum Search, Kakao Map Local (address, coord, transcoord, keyword, category), static map, routing. These use only the REST key, so they test the core early. | v0.1.0 |
 | **2. Kakao Login** ✅ | Authorize/logout URL builders with `state`, `nonce`, and `prompt`. Token exchange and refresh. OIDC `id_token` verification (JWKS cache, RS256, iss/aud/nonce checks). Token info, me, update profile, logout, unlink, app users, user ID iterator, shipping address v2, consents and terms. TokenSource. Example login server. | v0.2.0 |
 | **3. Talk** ✅ | `template/` builders for all default template types. Message send to self and to friends (default, custom, scrap). Social: profile, friends iterator, multi-profiles. Channel: relationship v2 single and multi, customer files. | v0.3.0 |
-| **4. Calendar + Push** | Talk Calendar: user calendars and events, public events, follow, subscribable calendars, holidays. Push v2: register, tokens, deregister, send, plus typed `for_apns` / `for_fcm` payloads. | v0.4.0 |
+| **4. Calendar + Push** ✅ | Talk Calendar: user calendars and events, public events, follow, subscribable calendars, holidays. Push v2: register, tokens, deregister, send, plus typed `for_apns` / `for_fcm` payloads. | v0.4.0 |
 | **5. Webhooks** | `webhook.UnlinkHandler`, `ChannelHandler`, `ShareHandler` (all verify `Authorization: KakaoAK <primary key>`). An SSF handler that verifies the SET JWT against `/.well-known/ssf-configuration` JWKS, parses typed events (RISC, CAEP, OAuth, KAKAO), and returns 202 on success and 400 on failure. Handlers answer within 3 s by handing work off. | v0.5.0 |
 | **6. Business Auth** | Business authorize URL, token, token info, revoke. Shared by the ads packages. | v0.6.0 |
 | **7. Hardening → v1.0** | Live integration suite against a real test app, gated by `KAKAO_*` environment variables. Godoc examples for every service. API review and freeze. `apidiff` in CI. | **v1.0.0** |

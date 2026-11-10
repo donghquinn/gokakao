@@ -78,6 +78,10 @@ type Client struct {
 	Talk *TalkService
 	// Channel calls the KakaoTalk Channel APIs.
 	Channel *ChannelService
+	// Calendar calls the Talk Calendar API.
+	Calendar *CalendarService
+	// Push calls the Push Notification API.
+	Push *PushService
 	// Search calls the Daum Search API.
 	Search *SearchService
 	// Map calls the Kakao Map REST API.
@@ -105,6 +109,8 @@ func NewClient(opts ...Option) (*Client, error) {
 	c.User = &UserService{c: c}
 	c.Talk = &TalkService{c: c}
 	c.Channel = &ChannelService{c: c}
+	c.Calendar = &CalendarService{c: c}
+	c.Push = &PushService{c: c}
 	c.Search = &SearchService{c: c}
 	c.Map = &MapService{c: c}
 	return c, nil

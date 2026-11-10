@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Talk Calendar: `Client.Calendar` with user calendars, events (with
+  `AllEvents` paging and `Clear` for removing fields), channel public events,
+  subscription calendars, holidays and tasks.
+- Push Notification v2: `Client.Push` with `Register`, `Tokens`, `Deregister`
+  and `Send` (APNs and FCM payloads, bypass).
 - `template` package: Feed, List, Commerce, Location, Text and Calendar
   message templates.
 - KakaoTalk Message and Social: `Client.Talk` with `SendToMe`,

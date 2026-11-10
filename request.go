@@ -79,7 +79,9 @@ type MultipartFile struct {
 	Filename string
 	// ContentType defaults to application/octet-stream.
 	ContentType string
-	Data        []byte
+	// Header holds extra part headers, e.g. Review-Document-Type.
+	Header textproto.MIMEHeader
+	Data   []byte
 }
 
 // Do sends r with the client's transport, error handling and retry policy,
@@ -268,6 +270,9 @@ func encodeMultipart(m *Multipart) ([]byte, string, error) {
 			ct = "application/octet-stream"
 		}
 		h := make(textproto.MIMEHeader)
+		for k, v := range f.Header {
+			h[textproto.CanonicalMIMEHeaderKey(k)] = v
+		}
 		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, f.Field, f.Filename))
 		h.Set("Content-Type", ct)
 		part, err := w.CreatePart(h)

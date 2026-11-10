@@ -2,8 +2,13 @@ package keywordad
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/textproto"
+	"net/url"
+	"strconv"
 
 	kakao "github.com/donghquinn/gokakao"
 )
@@ -84,10 +89,21 @@ type NewBizChannel struct {
 	AccessAccount *AccessAccount `json:"accessAccount,omitempty"`
 	// TalkChannels are KakaoTalk Channel search IDs, e.g. "@kakao".
 	TalkChannels []string `json:"talkChannels,omitempty"`
-	// ReviewDocuments are review documents given by URL. To upload a
-	// local file instead, create the biz channel and then use
-	// [DocumentService.Create].
+	// ReviewDocuments are review documents given by URL.
 	ReviewDocuments []ReviewDocumentURL `json:"reviewDocuments,omitempty"`
+	// Files are review documents uploaded with the request. When set, the
+	// request is sent as multipart/form-data.
+	Files []ReviewDocumentFile `json:"-"`
+}
+
+// ReviewDocumentFile is a review document uploaded as a file.
+type ReviewDocumentFile struct {
+	Type ReviewDocumentType
+	// RequiredReviewDocumentID is the kind of document, e.g. 8; see
+	// RequiredDocument in the reference.
+	RequiredReviewDocumentID int64
+	Filename                 string
+	Data                     []byte
 }
 
 // Create creates a biz channel website. It is limited to 1 request per 5
@@ -101,8 +117,29 @@ func (s *BizChannelService) Create(ctx context.Context, adAccountID int64, c New
 	if c.Name == "" || c.BusinessTypeID == 0 || c.WebsiteURL == (WebsiteURL{}) {
 		return nil, errors.New("keywordad: name, business type ID and website URL are required")
 	}
+	r := call{method: http.MethodPost, path: "/v1/bizChannels/websites", adAccountID: adAccountID, body: c}
+	if len(c.Files) > 0 {
+		dto, err := json.Marshal(c)
+		if err != nil {
+			return nil, fmt.Errorf("keywordad: encode biz channel: %w", err)
+		}
+		m := &kakao.Multipart{Fields: url.Values{"websiteBizChannelDto": {string(dto)}}}
+		for _, f := range c.Files {
+			if f.Type == "" || f.RequiredReviewDocumentID == 0 || len(f.Data) == 0 {
+				return nil, errors.New("keywordad: review document files need a type, required document ID and data")
+			}
+			m.Files = append(m.Files, kakao.MultipartFile{
+				Field: "files", Filename: f.Filename, Data: f.Data,
+				Header: textproto.MIMEHeader{
+					"Required-Review-Document-Id": {strconv.FormatInt(f.RequiredReviewDocumentID, 10)},
+					"Review-Document-Type":        {string(f.Type)},
+				},
+			})
+		}
+		r.body, r.multipart = nil, m
+	}
 	var res BizChannelDetail
-	if err := s.c.do(ctx, call{method: http.MethodPost, path: "/v1/bizChannels/websites", adAccountID: adAccountID, body: c}, &res); err != nil {
+	if err := s.c.do(ctx, r, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil

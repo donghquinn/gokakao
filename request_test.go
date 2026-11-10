@@ -7,6 +7,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"sync/atomic"
@@ -286,7 +287,7 @@ func TestClient_Do(t *testing.T) {
 		BearerToken: "BT",
 		Multipart: &Multipart{
 			Fields: url.Values{"name": {"배너"}},
-			Files:  []MultipartFile{{Field: "imageFile", Filename: "a.png", ContentType: "image/png", Data: []byte("\x89PNG")}, {Field: "doc", Filename: "b.bin", Data: []byte("x")}},
+			Files:  []MultipartFile{{Field: "imageFile", Filename: "a.png", ContentType: "image/png", Data: []byte("\x89PNG")}, {Field: "doc", Filename: "b.bin", Header: textproto.MIMEHeader{"review-document-type": {"CREATIVE"}}, Data: []byte("x")}},
 		},
 	}, &out)
 	if err != nil || out.ID != 7 {
@@ -306,7 +307,8 @@ func TestClient_Do(t *testing.T) {
 		t.Fatal(err)
 	}
 	if form.Value["name"][0] != "배너" || form.File["imageFile"][0].Filename != "a.png" ||
-		form.File["imageFile"][0].Header.Get("Content-Type") != "image/png" || form.File["doc"][0].Header.Get("Content-Type") != "application/octet-stream" {
+		form.File["imageFile"][0].Header.Get("Content-Type") != "image/png" || form.File["doc"][0].Header.Get("Content-Type") != "application/octet-stream" ||
+		form.File["doc"][0].Header.Get("Review-Document-Type") != "CREATIVE" {
 		t.Errorf("form = %+v / %+v", form.Value, form.File)
 	}
 

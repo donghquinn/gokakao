@@ -1,7 +1,10 @@
 package keywordad
 
 import (
+	"bytes"
 	"errors"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"slices"
 	"testing"
@@ -196,5 +199,50 @@ func TestBizChannelCampaignDocument_apiErrors(t *testing.T) {
 		if err := f(); !errors.As(err, &e) || e.Extras == nil || e.Extras.DetailCode != 103005 {
 			t.Errorf("%s: err = %v", name, err)
 		}
+	}
+}
+
+func TestBizChannelService_Create_files(t *testing.T) {
+	t.Parallel()
+	c, srv := newTestClient(t)
+	srv.HandleJSON("POST /openapi/v1/bizChannels/websites", 200, `{"id":"2222222221","name":"카카오"}`)
+
+	ch, err := c.BizChannels.Create(t.Context(), 1111111111, NewBizChannel{
+		Name:           "카카오",
+		BusinessTypeID: 445,
+		WebsiteURL:     WebsiteURL{RspvURL: "https://wwws.daum.net"},
+		Files: []ReviewDocumentFile{
+			{Type: ReviewDocumentBizChannel, RequiredReviewDocumentID: 8, Filename: "document.jpg", Data: []byte("doc")},
+			{Type: ReviewDocumentCreative, RequiredReviewDocumentID: 93, Filename: "content_document.jpg", Data: []byte("doc2")},
+		},
+	})
+	if err != nil || ch.ID != 2222222221 {
+		t.Fatalf("Create = %+v, %v", ch, err)
+	}
+	req := assertRequest(t, srv, "1111111111")
+	mt, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+	if err != nil || mt != "multipart/form-data" {
+		t.Fatalf("Content-Type = %q", req.Header.Get("Content-Type"))
+	}
+	form, err := multipart.NewReader(bytes.NewReader(req.Body), params["boundary"]).ReadForm(1 << 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := form.Value["websiteBizChannelDto"]; len(got) != 1 || got[0] != `{"name":"카카오","ufoBusinessTypeId":445,"websiteUrl":{"rspvUrl":"https://wwws.daum.net"}}` {
+		t.Errorf("dto = %q", got)
+	}
+	files := form.File["files"]
+	if len(files) != 2 || files[0].Filename != "document.jpg" ||
+		files[0].Header.Get("Required-Review-Document-Id") != "8" || files[0].Header.Get("Review-Document-Type") != "BIZ_CHANNEL" ||
+		files[1].Header.Get("Required-Review-Document-Id") != "93" || files[1].Header.Get("Review-Document-Type") != "CREATIVE" {
+		t.Errorf("files = %+v", files)
+	}
+
+	_, err = c.BizChannels.Create(t.Context(), 1, NewBizChannel{
+		Name: "x", BusinessTypeID: 1, WebsiteURL: WebsiteURL{RspvURL: "https://x"},
+		Files: []ReviewDocumentFile{{Filename: "a"}},
+	})
+	if err == nil {
+		t.Error("incomplete file: want error")
 	}
 }

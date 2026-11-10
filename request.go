@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -89,7 +90,7 @@ type MultipartFile struct {
 // Errors are [*Error] or [*OAuthError] like the typed services.
 func (c *Client) Do(ctx context.Context, r *Request, out any) error {
 	if r == nil {
-		return fmt.Errorf("kakao: nil Request")
+		return errors.New("kakao: nil Request")
 	}
 	if r.Host <= hostUnknown || r.Host >= numHosts {
 		return fmt.Errorf("kakao: unknown host %d", r.Host)

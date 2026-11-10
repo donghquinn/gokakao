@@ -101,6 +101,25 @@ func TestInt64_JSON(t *testing.T) {
 	}
 }
 
+func TestID_JSON(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]ID{`8888888883`: "8888888883", `"_ZQxd"`: "_ZQxd", `null`: "", `""`: ""} {
+		var id ID
+		if err := json.Unmarshal([]byte(in), &id); err != nil || id != want {
+			t.Errorf("%s = %q, %v", in, id, err)
+		}
+	}
+	for _, in := range []string{`1.5`, `true`, `"`} {
+		var id ID
+		if err := json.Unmarshal([]byte(in), &id); err == nil {
+			t.Errorf("%s: want error", in)
+		}
+	}
+	if b, _ := json.Marshal(ID("1")); string(b) != `"1"` {
+		t.Errorf("Marshal = %s", b)
+	}
+}
+
 func TestYesNo_JSON(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -163,5 +182,7 @@ func FuzzLenientTypes(f *testing.F) {
 		_ = yn.UnmarshalJSON(b)
 		var n Int64
 		_ = n.UnmarshalJSON(b)
+		var id ID
+		_ = id.UnmarshalJSON(b)
 	})
 }

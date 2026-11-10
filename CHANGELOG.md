@@ -36,6 +36,14 @@ API review before v1.0.0 (breaking against earlier development commits):
 
 ### Added
 
+- Advertising modules `github.com/donghquinn/gokakao/keywordad` (all 65 Kakao
+  Keyword Ad endpoints) and `github.com/donghquinn/gokakao/moment` (all 145
+  Kakao Moment endpoints), each on its own v0.x version.
+- Core support for them: `HostMoment`, `HostKeywordAd`, `Client.Do` and
+  `Request` (custom headers, multipart bodies with per-part headers),
+  `Error.Extras` for detailed ad API errors, and the lenient `Int64` and `ID`
+  types. `Time` now also parses "+0000" offsets and offset-less timestamps
+  (read as KST).
 - CI: API compatibility check on pull requests, nightly live tests, and
   GitHub releases on version tags.
 - Examples for every service.

@@ -128,6 +128,36 @@ func (n *Int64) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// ID is an identifier that Kakao encodes as a JSON string in some
+// responses and as a number in others. It is always a string in Go and
+// encodes as a JSON string.
+type ID string
+
+// UnmarshalJSON implements [json.Unmarshaler].
+func (id *ID) UnmarshalJSON(b []byte) error {
+	if bytes.Equal(b, []byte("null")) {
+		*id = ""
+		return nil
+	}
+	if len(b) > 0 && b[0] != '"' {
+		var n json.Number
+		if err := json.Unmarshal(b, &n); err != nil {
+			return fmt.Errorf("kakao: ID: %w", err)
+		}
+		if _, err := n.Int64(); err != nil {
+			return fmt.Errorf("kakao: ID: %w", err)
+		}
+		*id = ID(n)
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("kakao: ID: %w", err)
+	}
+	*id = ID(s)
+	return nil
+}
+
 // YesNo is a "Y"/"N" flag in a Kakao response. "Y" decodes to true and
 // anything else to false.
 type YesNo bool

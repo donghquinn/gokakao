@@ -94,3 +94,28 @@ func TestTypes_roundTrip(t *testing.T) {
 		})
 	}
 }
+
+func TestLenientSharedTypes(t *testing.T) {
+	t.Parallel()
+	var item Item
+	if err := json.Unmarshal([]byte(`{"landing":{"pcLandingUrl":"https://x"}}`), &item); err != nil || len(item.Landing) != 1 {
+		t.Errorf("single landing: %+v, %v", item.Landing, err)
+	}
+	if err := json.Unmarshal([]byte(`{"landing":[{},{}]}`), &item); err != nil || len(item.Landing) != 2 {
+		t.Errorf("landing list: %+v, %v", item.Landing, err)
+	}
+	if err := json.Unmarshal([]byte(`{"landing":{"pcLandingUrl":1}}`), &item); err == nil {
+		t.Error("bad landing object: want error")
+	}
+	if err := json.Unmarshal([]byte(`{"landing":"x"}`), &item); err == nil {
+		t.Error("bad landing: want error")
+	}
+	var v Video
+	if err := json.Unmarshal([]byte(`{"duration":3.0}`), &v); err != nil || v.Duration != 3 {
+		t.Errorf("video duration: %+v, %v", v, err)
+	}
+	var tc TalkChannelTargeting
+	if err := json.Unmarshal([]byte(`{"profileId":"_ZQxd"}`), &tc); err != nil || tc.ProfileID != "_ZQxd" {
+		t.Errorf("profile ID: %+v, %v", tc, err)
+	}
+}

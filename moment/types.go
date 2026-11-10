@@ -1,6 +1,7 @@
 package moment
 
 import (
+	"bytes"
 	"encoding/json"
 
 	kakao "github.com/donghquinn/gokakao"
@@ -1161,9 +1162,9 @@ type Item struct {
 	// video.mediaId instead.
 	// TODO(review): Item has no video field on the type page; add it once
 	// the message docs define it.
-	ImageURL string    `json:"imageUrl,omitempty"`
-	Title    string    `json:"title,omitempty"`
-	Landing  []Landing `json:"landing,omitempty"`
+	ImageURL string   `json:"imageUrl,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	Landing  Landings `json:"landing,omitempty"`
 }
 
 // ItemAssetGroup is a list item of a message creative.
@@ -1480,11 +1481,10 @@ type TalkChannelTargeting struct {
 	ID            kakao.Int64   `json:"id"`
 	Name          string        `json:"name"`
 	InclusionType InclusionType `json:"inclusionType"`
-	// ProfileID is the encoded profile ID.
-	// TODO(review): documented as Integer; kakao.Int64 accepts numbers and
-	// numeric strings, but an encoded ID may be non-numeric.
-	ProfileID   kakao.Int64 `json:"profileId"`
-	ProfileName string      `json:"profileName"`
+	// ProfileID is the encoded channel profile ID, e.g. "_ZQxd". The docs
+	// type it as Integer, but the API uses encoded strings.
+	ProfileID   kakao.ID `json:"profileId"`
+	ProfileName string   `json:"profileName"`
 }
 
 // Targeting is the targeting of a display ad group or audience.
@@ -1587,7 +1587,7 @@ type Video struct {
 	URL      string      `json:"url"`
 	FileName string      `json:"fileName"`
 	Size     kakao.Int64 `json:"size"`
-	Duration string      `json:"duration"` // 재생시간
+	Duration kakao.Float `json:"duration"` // 재생시간, seconds
 }
 
 // DisplayVideo is the video of a display creative (Video: 디스플레이 소재).
@@ -1600,4 +1600,27 @@ type MessageVideo struct {
 	URL                string `json:"url"`
 	AutoThumbnailURL   string `json:"autoThumbnailUrl"`
 	UploadThumbnailURL string `json:"uploadThumbnailUrl"`
+}
+
+// Landings is a list of landings. It also decodes a single landing object,
+// which some responses send in place of a list.
+type Landings []Landing
+
+// UnmarshalJSON implements [json.Unmarshaler].
+func (l *Landings) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) > 0 && b[0] == '{' {
+		var one Landing
+		if err := json.Unmarshal(b, &one); err != nil {
+			return err
+		}
+		*l = Landings{one}
+		return nil
+	}
+	var many []Landing
+	if err := json.Unmarshal(b, &many); err != nil {
+		return err
+	}
+	*l = many
+	return nil
 }

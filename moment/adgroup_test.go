@@ -414,7 +414,7 @@ func TestAdGroupTargeting_Spec(t *testing.T) {
 		CustomerFileTargetings:     []CustomerFileTargeting{{ID: 2, InclusionType: InclusionExclude}},
 		TrackerTargetings:          []TrackerTargeting{{ID: 9, TrackID: "t", InclusionType: InclusionInclude, EventCode: "*", TrackRuleID: "*", TrackRuleName: "n", Term: 30}},
 		CohortTargetings:           []CohortTargeting{{ID: 3, CohortID: 4, InclusionType: InclusionInclude}, {ID: 5, InclusionType: InclusionExclude}},
-		TalkChannelTargetings:      []TalkChannelTargeting{{ID: 6, ProfileID: 123, InclusionType: InclusionInclude}},
+		TalkChannelTargetings:      []TalkChannelTargeting{{ID: 6, ProfileID: "123", InclusionType: InclusionInclude}},
 		SyncAppTargetings:          []SyncAppTargeting{{ProfileID: "_a", InclusionType: InclusionInclude}},
 		TalkChannelGroupTargetings: []TalkChannelGroupTargeting{{TalkChannelGroupFileID: 8, Name: "g", InclusionType: InclusionInclude, FileType: CustomerDataFilePhoneNumber, GroupKey: "k"}},
 	}

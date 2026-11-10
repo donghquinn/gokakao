@@ -257,7 +257,7 @@ func (t *AdGroupTargeting) Spec() AdGroupTargetingSpec {
 		s.CohortTargetings = append(s.CohortTargetings, CohortTarget{CohortID: int64(id), InclusionType: v.InclusionType})
 	}
 	for _, v := range t.TalkChannelTargetings {
-		s.TalkChannelTargetings = append(s.TalkChannelTargetings, TalkChannelTarget{ProfileID: strconv.FormatInt(int64(v.ProfileID), 10), InclusionType: v.InclusionType})
+		s.TalkChannelTargetings = append(s.TalkChannelTargetings, TalkChannelTarget{ProfileID: string(v.ProfileID), InclusionType: v.InclusionType})
 	}
 	s.SyncAppTargetings = t.SyncAppTargetings
 	for _, v := range t.TalkChannelGroupTargetings {

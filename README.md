@@ -232,7 +232,7 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 | Talk Calendar (incl. tasks), Push | ✅ |
 | Webhooks | ✅ |
 | Business Auth | ✅ |
-| Kakao Moment, Keyword Ad | planned (after v1.0) |
+| Kakao Moment (145 endpoints), Keyword Ad (65) | ✅ separate modules: [moment](moment/README.md), [keywordad](keywordad/README.md) |
 
 ## Testing
 

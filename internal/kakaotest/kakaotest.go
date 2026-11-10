@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"sync"
 	"testing"
 )
@@ -65,6 +66,17 @@ func (s *Server) HandleJSON(pattern string, status int, body string) {
 		w.WriteHeader(status)
 		_, _ = io.WriteString(w, body)
 	})
+}
+
+// HandleFile registers a handler for pattern that replies 200 with the
+// JSON file at path, typically under testdata/.
+func (s *Server) HandleFile(pattern, path string) {
+	s.tb.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		s.tb.Fatalf("kakaotest: %v", err)
+	}
+	s.HandleJSON(pattern, http.StatusOK, string(b))
 }
 
 // Requests returns the requests received so far, in order.

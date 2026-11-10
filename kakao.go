@@ -68,6 +68,11 @@ type Client struct {
 	userAgent    string
 	retry        *RetryPolicy
 	maxBodySize  int64
+
+	// Search calls the Daum Search API.
+	Search *SearchService
+	// Map calls the Kakao Map REST API.
+	Map *MapService
 }
 
 // Option configures a [Client].
@@ -86,6 +91,8 @@ func NewClient(opts ...Option) (*Client, error) {
 			return nil, err
 		}
 	}
+	c.Search = &SearchService{c: c}
+	c.Map = &MapService{c: c}
 	return c, nil
 }
 

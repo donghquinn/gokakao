@@ -1,6 +1,7 @@
 package kakao_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -21,6 +22,58 @@ func ExampleNewClient() {
 		log.Fatal(err)
 	}
 	_ = c
+}
+
+func ExampleSearchService_Book() {
+	c, err := kakao.NewClient(kakao.WithRESTKey(os.Getenv("KAKAO_REST_KEY")))
+	if err != nil {
+		log.Fatal(err)
+	}
+	res, err := c.Search.Book(context.Background(), "미움받을 용기", &kakao.BookSearchOptions{
+		Target: kakao.BookTargetTitle,
+		Size:   5,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, b := range res.Documents {
+		fmt.Println(b.Title, b.Authors, b.SalePrice)
+	}
+}
+
+func ExampleMapService_SearchKeyword() {
+	c, err := kakao.NewClient(kakao.WithRESTKey(os.Getenv("KAKAO_REST_KEY")))
+	if err != nil {
+		log.Fatal(err)
+	}
+	res, err := c.Map.SearchKeyword(context.Background(), "카페", &kakao.PlaceSearchOptions{
+		Center: &kakao.Point{X: 127.1086228, Y: 37.4012191}, // Pangyo station
+		Radius: 500,
+		Sort:   kakao.PlaceSortDistance,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, p := range res.Documents {
+		fmt.Printf("%s (%.0fm)\n", p.PlaceName, p.Distance)
+	}
+}
+
+func ExampleMapService_StaticMap() {
+	c, err := kakao.NewClient(kakao.WithRESTKey(os.Getenv("KAKAO_REST_KEY")))
+	if err != nil {
+		log.Fatal(err)
+	}
+	img, err := c.Map.StaticMap(context.Background(), &kakao.StaticMapParams{
+		Width: 640, Height: 480,
+		Markers: []kakao.Marker{{Location: kakao.Point{X: 127.1105, Y: 37.3955}}},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := os.WriteFile("map.png", img.Data, 0o600); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func ExampleError() {

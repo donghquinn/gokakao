@@ -33,6 +33,41 @@ c, err := kakao.NewClient(
 )
 ```
 
+### Daum Search
+
+```go
+res, err := c.Search.Book(ctx, "미움받을 용기", &kakao.BookSearchOptions{Target: kakao.BookTargetTitle})
+for _, b := range res.Documents {
+	fmt.Println(b.Title, b.Authors, b.SalePrice)
+}
+```
+
+`Web`, `Video`, `Image`, `Blog`, `Cafe` and `Book` are available.
+
+### Kakao Map
+
+```go
+pangyo := kakao.Point{X: 127.1086228, Y: 37.4012191} // X = longitude, Y = latitude
+
+places, err := c.Map.SearchKeyword(ctx, "카페", &kakao.PlaceSearchOptions{
+	Center: &pangyo, Radius: 500, Sort: kakao.PlaceSortDistance,
+})
+addrs, err := c.Map.SearchAddress(ctx, "판교역로 166", nil)
+regions, err := c.Map.CoordToRegionCode(ctx, pangyo, nil)
+route, err := c.Map.WalkingRoute(ctx, pangyo, kakao.Point{X: 127.1263, Y: 37.4199}, nil)
+img, err := c.Map.StaticMap(ctx, &kakao.StaticMapParams{Width: 640, Height: 480, Center: &pangyo})
+```
+
+| Method | Kakao API |
+|---|---|
+| `SearchAddress` | 주소 검색 (address → coordinates) |
+| `CoordToRegionCode` | 좌표 → 행정구역정보 |
+| `CoordToAddress` | 좌표 → 주소 |
+| `TransformCoord` | 좌표계 변환 |
+| `SearchKeyword` / `SearchCategory` | 키워드 / 카테고리 장소 검색 |
+| `WalkingRoute` / `CyclingRoute` / `TransitRoute` | 도보 / 자전거 / 대중교통 길찾기 |
+| `StaticMap` | 정적 지도 이미지 |
+
 ### Errors
 
 ```go
@@ -50,14 +85,21 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 
 | Product | Status |
 |---|---|
-| Daum Search | planned (v0.1) |
-| Kakao Map (Local) | planned (v0.1) |
+| Daum Search | ✅ |
+| Kakao Map (local search, coordinates, routing, static map) | ✅ |
 | Kakao Login / OpenID Connect | planned (v0.2) |
 | KakaoTalk Message, Social, Channel | planned (v0.3) |
 | Talk Calendar, Push | planned (v0.4) |
 | Webhooks | planned (v0.5) |
 | Business Auth | planned (v0.6) |
 | Kakao Moment, Keyword Ad | planned (after v1.0) |
+
+## Testing
+
+```sh
+make test                                                      # unit tests, no network
+KAKAO_REST_KEY=... go test -tags=integration -run Integration . # live API
+```
 
 ## Contributing
 

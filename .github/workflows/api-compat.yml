@@ -1,0 +1,51 @@
+name: API compatibility
+
+# Fails a pull request that breaks the exported API, unless it carries the
+# "breaking-change" label. After v1.0.0, breaking changes need a new major
+# version instead.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  apidiff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Install apidiff
+        run: go install golang.org/x/exp/cmd/apidiff@latest
+
+      - name: Compare with base
+        id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git worktree add "$RUNNER_TEMP/base" "$BASE_SHA"
+          (cd "$RUNNER_TEMP/base" && apidiff -m -w "$RUNNER_TEMP/base.export" github.com/donghquinn/gokakao)
+          apidiff -m -w "$RUNNER_TEMP/head.export" github.com/donghquinn/gokakao
+          apidiff -m "$RUNNER_TEMP/base.export" "$RUNNER_TEMP/head.export" | tee "$RUNNER_TEMP/all.txt"
+          apidiff -m -incompatible "$RUNNER_TEMP/base.export" "$RUNNER_TEMP/head.export" | grep -v '^Ignoring internal package' > "$RUNNER_TEMP/incompatible.txt" || true
+          {
+            echo '### API changes'
+            echo '```'
+            grep -v '^Ignoring internal package' "$RUNNER_TEMP/all.txt" || echo 'none'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -s "$RUNNER_TEMP/incompatible.txt" ]; then echo "breaking=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Require breaking-change label
+        if: steps.diff.outputs.breaking == 'true' && !contains(github.event.pull_request.labels.*.name, 'breaking-change')
+        run: |
+          echo "::error::This pull request breaks the exported API. Add the 'breaking-change' label if that is intended."
+          exit 1

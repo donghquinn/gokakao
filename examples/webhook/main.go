@@ -12,6 +12,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -36,20 +37,33 @@ func main() {
 		}
 	}()
 
+	// enqueue fails when the queue is full, so Kakao gets an error status.
+	enqueue := func(job func()) error {
+		select {
+		case jobs <- job:
+			return nil
+		default:
+			return errors.New("job queue full")
+		}
+	}
+	logErrors := webhook.WithErrorHandler(func(r *http.Request, err error) {
+		log.Printf("webhook %q: %v", r.URL.Path, err) //nolint:gosec // %q escapes the path
+	})
+
 	mux := http.NewServeMux()
-	mux.Handle("/kakao/unlink", webhook.UnlinkHandler(adminKey, func(_ *http.Request, e *webhook.UnlinkEvent) {
-		jobs <- func() { log.Printf("unlink: user %d (%s)", e.UserID, e.ReferrerType) }
-	}))
-	mux.Handle("POST /kakao/events", webhook.SecurityEventHandler(c.Auth, func(_ *http.Request, e *kakao.SecurityEvent) {
-		jobs <- func() {
+	mux.Handle("/kakao/unlink", webhook.UnlinkHandler(adminKey, func(_ *http.Request, e *webhook.UnlinkEvent) error {
+		return enqueue(func() { log.Printf("unlink: user %d (%s)", e.UserID, e.ReferrerType) })
+	}, logErrors))
+	mux.Handle("POST /kakao/events", webhook.SecurityEventHandler(c.Auth, func(_ *http.Request, e *kakao.SecurityEvent) error {
+		return enqueue(func() {
 			for typ, d := range e.Events {
 				log.Printf("security event %s for user %s: %+v", typ, e.Subject, d)
 			}
-		}
-	}))
-	mux.Handle("POST /kakao/channel", webhook.ChannelHandler(adminKey, func(_ *http.Request, e *webhook.ChannelEvent) {
-		jobs <- func() { log.Printf("channel %s: %s by %s %s", e.ChannelPublicID, e.Event, e.IDType, e.ID) }
-	}))
+		})
+	}, logErrors))
+	mux.Handle("POST /kakao/channel", webhook.ChannelHandler(adminKey, func(_ *http.Request, e *webhook.ChannelEvent) error {
+		return enqueue(func() { log.Printf("channel %s: %s by %s %s", e.ChannelPublicID, e.Event, e.IDType, e.ID) })
+	}, logErrors))
 
 	srv := &http.Server{Addr: ":8080", Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	log.Fatal(srv.ListenAndServe())

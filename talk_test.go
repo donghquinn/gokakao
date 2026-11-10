@@ -81,15 +81,7 @@ func TestTalkService_SendToMe_errors(t *testing.T) {
 	if err := c.Talk.SendToMe(t.Context(), "", textMsg); !errors.Is(err, ErrMissingCredential) {
 		t.Errorf("no token: err = %v", err)
 	}
-	if err := c.Talk.SendToMe(t.Context(), "AT", badTemplate{}); err == nil {
-		t.Error("unencodable template: want error")
-	}
 }
-
-type badTemplate struct{}
-
-func (badTemplate) ObjectType() string           { return "bad" }
-func (badTemplate) MarshalJSON() ([]byte, error) { return nil, errors.New("boom") }
 
 func TestTalkService_SendToFriends(t *testing.T) {
 	t.Parallel()
@@ -239,7 +231,7 @@ func TestTalkService_Profiles(t *testing.T) {
 	c, srv := newTestClient(t, WithAdminKey("admin"))
 	srv.HandleJSON("GET /v2/api/talk/profiles", 200, `{"viewer":{"user_id":12345,"nickname":"xxx"},"targets":[{"user_id":9876,"nickname":"yyy","profile_image":"p","thumbnail_image":"t"},{"user_id":5432,"nickname":"zzz"}]}`)
 
-	res, err := c.Talk.Profiles(t.Context(), []int64{9876, 5432}, 12345)
+	res, err := c.Talk.Profiles(t.Context(), []int64{9876, 5432}, &ProfilesOptions{ViewerID: 12345})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,13 +248,13 @@ func TestTalkService_Profiles(t *testing.T) {
 		t.Errorf("res = %+v", res)
 	}
 
-	if _, err := c.Talk.Profiles(t.Context(), []int64{1}, 0); err != nil {
+	if _, err := c.Talk.Profiles(t.Context(), []int64{1}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if q := srv.LastRequest().Query; q.Has("viewer_id") || q.Has("viewer_id_type") {
 		t.Errorf("viewer sent: %v", q)
 	}
-	if _, err := c.Talk.Profiles(t.Context(), nil, 0); err == nil {
+	if _, err := c.Talk.Profiles(t.Context(), nil, nil); err == nil {
 		t.Error("no IDs: want error")
 	}
 }

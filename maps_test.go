@@ -116,7 +116,7 @@ func TestMapService_TransformCoord(t *testing.T) {
 	c, srv := newTestClient(t, WithRESTKey("rest"))
 	srv.HandleFile("GET /v2/local/geo/transcoord.json", "testdata/map/transcoord.json")
 
-	p, err := c.Map.TransformCoord(t.Context(), Point{X: 160710.37729270622, Y: -4388.879299157299}, WTM, WGS84)
+	p, err := c.Map.TransformCoord(t.Context(), Point{X: 160710.37729270622, Y: -4388.879299157299}, &CoordOptions{InputCoord: WTM, OutputCoord: WGS84})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestMapService_TransformCoord(t *testing.T) {
 
 	empty, srv2 := newTestClient(t, WithRESTKey("rest"))
 	srv2.HandleJSON("GET /v2/local/geo/transcoord.json", 200, `{"meta":{"total_count":0},"documents":[]}`)
-	if _, err := empty.Map.TransformCoord(t.Context(), Point{}, "", ""); err == nil {
+	if _, err := empty.Map.TransformCoord(t.Context(), Point{}, nil); err == nil {
 		t.Error("no documents: want error")
 	}
 	if q := srv2.LastRequest().Query; q.Has("input_coord") || q.Has("output_coord") {
@@ -318,14 +318,14 @@ func TestMapService_StaticMap(t *testing.T) {
 		_, _ = w.Write([]byte("\x89PNG"))
 	})
 
-	img, err := c.Map.StaticMap(t.Context(), &StaticMapParams{
+	img, err := c.Map.StaticMap(t.Context(), StaticMapParams{
 		Width: 640, Height: 480,
 		Center: &Point{X: 127.1105, Y: 37.3955},
 		Markers: []Marker{
 			{Location: Point{X: 127.1105, Y: 37.3955}},
 			{Location: Point{X: 127.112, Y: 37.397}, ExcludeFromBounds: true},
 		},
-		Format: "jpg", LogoPos: LogoTopRight, Scale: 1, Level: 5, Coord: WGS84,
+		Format: ImageJPEG, LogoPos: LogoTopRight, Scale: 1, Level: 5, Coord: WGS84,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -346,8 +346,7 @@ func TestMapService_StaticMap(t *testing.T) {
 		}
 	}
 
-	for name, p := range map[string]*StaticMapParams{
-		"nil":       nil,
+	for name, p := range map[string]StaticMapParams{
 		"no size":   {Center: &Point{}},
 		"no center": {Width: 10, Height: 10},
 		"negative":  {Width: -1, Height: 10, Center: &Point{}},

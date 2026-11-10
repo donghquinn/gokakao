@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	kakao "github.com/donghquinn/gokakao"
 )
 
 // maxBodySize limits webhook request bodies.
@@ -40,6 +42,53 @@ func authorize(r *http.Request, primaryAdminKey string) error {
 		return ErrUnauthorized
 	}
 	return nil
+}
+
+// Option configures a webhook handler.
+type Option func(*options)
+
+type options struct {
+	onError func(r *http.Request, err error)
+}
+
+// WithErrorHandler sets a function called with every error a handler
+// encounters: authentication and parse failures and errors returned by the
+// callback. Use it for logging and metrics.
+func WithErrorHandler(fn func(r *http.Request, err error)) Option {
+	return func(o *options) { o.onError = fn }
+}
+
+func newOptions(opts []Option) options {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
+func (o options) report(r *http.Request, err error) {
+	if o.onError != nil {
+		o.onError(r, err)
+	}
+}
+
+// serve is the common handler body: parse, call fn, and reply okStatus or,
+// if fn fails, failStatus.
+func serve[E any](w http.ResponseWriter, r *http.Request, o options, parse func(*http.Request) (E, error), fn func(*http.Request, E) error, okStatus, failStatus int) {
+	e, err := parse(r)
+	if err != nil {
+		o.report(r, err)
+		http.Error(w, err.Error(), status(err))
+		return
+	}
+	if err := fn(r, e); err != nil {
+		o.report(r, err)
+		if failStatus != okStatus {
+			http.Error(w, http.StatusText(failStatus), failStatus)
+			return
+		}
+	}
+	w.WriteHeader(okStatus)
 }
 
 // status returns the HTTP status for a parse error.
@@ -68,7 +117,7 @@ func readBody(r *http.Request) ([]byte, error) {
 // service, e.g. by deleting their Kakao Account. It is not sent when the
 // service itself calls the unlink API.
 type UnlinkEvent struct {
-	AppID  string
+	AppID  int64
 	UserID int64
 	// ReferrerType is how the user unlinked: "ACCOUNT_DELETE",
 	// "FORCED_ACCOUNT_DELETE", "UNLINK_FROM_ADMIN", "UNLINK_FROM_APPS" or
@@ -94,8 +143,12 @@ func ParseUnlink(r *http.Request, primaryAdminKey string) (*UnlinkEvent, error) 
 	if err != nil {
 		return nil, fmt.Errorf("webhook: parse unlink user_id: %w", err)
 	}
+	appID, err := strconv.ParseInt(r.Form.Get("app_id"), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("webhook: parse unlink app_id: %w", err)
+	}
 	return &UnlinkEvent{
-		AppID:          r.Form.Get("app_id"),
+		AppID:          appID,
 		UserID:         userID,
 		ReferrerType:   r.Form.Get("referrer_type"),
 		GroupUserToken: r.Form.Get("group_user_token"),
@@ -103,17 +156,15 @@ func ParseUnlink(r *http.Request, primaryAdminKey string) (*UnlinkEvent, error) 
 }
 
 // UnlinkHandler returns a handler for the unlink webhook. It calls fn for
-// each authenticated event and replies 200 OK, as Kakao requires even when
-// the user is unknown. Requests without the primary admin key get 401.
-func UnlinkHandler(primaryAdminKey string, fn func(r *http.Request, e *UnlinkEvent)) http.Handler {
+// each authenticated event and replies 200 OK, which Kakao requires even
+// when the user is unknown or fn fails; errors from fn go to the
+// [WithErrorHandler] function. Requests without the primary admin key get
+// 401.
+func UnlinkHandler(primaryAdminKey string, fn func(r *http.Request, e *UnlinkEvent) error, opts ...Option) http.Handler {
+	o := newOptions(opts)
+	parse := func(r *http.Request) (*UnlinkEvent, error) { return ParseUnlink(r, primaryAdminKey) }
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		e, err := ParseUnlink(r, primaryAdminKey)
-		if err != nil {
-			http.Error(w, err.Error(), status(err))
-			return
-		}
-		fn(r, e)
-		w.WriteHeader(http.StatusOK)
+		serve(w, r, o, parse, fn, http.StatusOK, http.StatusOK)
 	})
 }
 
@@ -128,10 +179,10 @@ type ChannelEvent struct {
 	ID string `json:"id"`
 	// IDType is "app_user_id" (a user ID, when the user consented to
 	// plusfriends) or "open_id".
-	IDType          string    `json:"id_type"`
-	ChannelPublicID string    `json:"channel_public_id"`
-	ChannelUUID     string    `json:"channel_uuid"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	IDType          string     `json:"id_type"`
+	ChannelPublicID string     `json:"channel_public_id"`
+	ChannelUUID     string     `json:"channel_uuid"`
+	UpdatedAt       kakao.Time `json:"updated_at"`
 	// ResourceID is the X-Kakao-Resource-ID header, unique per webhook.
 	ResourceID string `json:"-"`
 }
@@ -156,16 +207,13 @@ func ParseChannel(r *http.Request, primaryAdminKey string) (*ChannelEvent, error
 }
 
 // ChannelHandler returns a handler for the KakaoTalk Channel webhook. It
-// calls fn for each authenticated event and replies 200 OK.
-func ChannelHandler(primaryAdminKey string, fn func(r *http.Request, e *ChannelEvent)) http.Handler {
+// calls fn for each authenticated event and replies 200 OK, or 500 if fn
+// returns an error.
+func ChannelHandler(primaryAdminKey string, fn func(r *http.Request, e *ChannelEvent) error, opts ...Option) http.Handler {
+	o := newOptions(opts)
+	parse := func(r *http.Request) (*ChannelEvent, error) { return ParseChannel(r, primaryAdminKey) }
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		e, err := ParseChannel(r, primaryAdminKey)
-		if err != nil {
-			http.Error(w, err.Error(), status(err))
-			return
-		}
-		fn(r, e)
-		w.WriteHeader(http.StatusOK)
+		serve(w, r, o, parse, fn, http.StatusOK, http.StatusInternalServerError)
 	})
 }
 
@@ -253,16 +301,13 @@ func ParseShare(r *http.Request, primaryAdminKey string) (*ShareEvent, error) {
 }
 
 // ShareHandler returns a handler for the KakaoTalk Share webhook. It calls
-// fn for each authenticated event and replies 200 OK.
-func ShareHandler(primaryAdminKey string, fn func(r *http.Request, e *ShareEvent)) http.Handler {
+// fn for each authenticated event and replies 200 OK, or 500 if fn returns
+// an error.
+func ShareHandler(primaryAdminKey string, fn func(r *http.Request, e *ShareEvent) error, opts ...Option) http.Handler {
+	o := newOptions(opts)
+	parse := func(r *http.Request) (*ShareEvent, error) { return ParseShare(r, primaryAdminKey) }
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		e, err := ParseShare(r, primaryAdminKey)
-		if err != nil {
-			http.Error(w, err.Error(), status(err))
-			return
-		}
-		fn(r, e)
-		w.WriteHeader(http.StatusOK)
+		serve(w, r, o, parse, fn, http.StatusOK, http.StatusInternalServerError)
 	})
 }
 
@@ -271,8 +316,8 @@ func ShareHandler(primaryAdminKey string, fn func(r *http.Request, e *ShareEvent
 // PushFailure reports a push notification that APNs or FCM rejected. Kakao
 // posts it to the return_url of the push message.
 type PushFailure struct {
-	// UUID is the user the push was sent to.
-	UUID      string
+	// UserID is the service's user ID the push was sent to.
+	UserID    int64
 	PushToken string
 	Date      time.Time
 	// NewPushToken is a replacement token FCM may provide with bypass
@@ -291,9 +336,15 @@ func ParsePushFailure(r *http.Request) (*PushFailure, error) {
 		return nil, fmt.Errorf("webhook: parse push failure: %w", err)
 	}
 	f := &PushFailure{
-		UUID:         r.Form.Get("userId"),
 		PushToken:    r.Form.Get("pushToken"),
 		NewPushToken: r.Form.Get("newPushToken"),
+	}
+	if id := r.Form.Get("userId"); id != "" {
+		uid, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("webhook: parse push failure userId: %w", err)
+		}
+		f.UserID = uid
 	}
 	if d := r.Form.Get("date"); d != "" {
 		ms, err := strconv.ParseInt(d, 10, 64)
@@ -306,16 +357,11 @@ func ParsePushFailure(r *http.Request) (*PushFailure, error) {
 }
 
 // PushFailureHandler returns a handler for push failure feedback. It calls
-// fn for each request and replies 200 OK. See [ParsePushFailure] about
-// authentication.
-func PushFailureHandler(fn func(r *http.Request, f *PushFailure)) http.Handler {
+// fn for each request and replies 200 OK, or 500 if fn returns an error.
+// See [ParsePushFailure] about authentication.
+func PushFailureHandler(fn func(r *http.Request, f *PushFailure) error, opts ...Option) http.Handler {
+	o := newOptions(opts)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f, err := ParsePushFailure(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		fn(r, f)
-		w.WriteHeader(http.StatusOK)
+		serve(w, r, o, ParsePushFailure, fn, http.StatusOK, http.StatusInternalServerError)
 	})
 }

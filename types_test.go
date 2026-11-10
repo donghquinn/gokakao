@@ -19,7 +19,9 @@ func TestTime_UnmarshalJSON(t *testing.T) {
 		{"no fraction", `"2017-05-06T00:36:45+09:00"`, time.Date(2017, 5, 6, 0, 36, 45, 0, kst), false},
 		{"empty string", `""`, time.Time{}, false},
 		{"null", `null`, time.Time{}, false},
-		{"not a string", `123`, time.Time{}, true},
+		{"unix seconds", `1658214426`, time.Unix(1658214426, 0), false},
+		{"not a time", `true`, time.Time{}, true},
+		{"fractional number", `1.5`, time.Time{}, true},
 		{"bad format", `"2017/06/14"`, time.Time{}, true},
 	}
 	for _, tt := range tests {
@@ -116,4 +118,18 @@ func TestFormatFloat(t *testing.T) {
 			t.Errorf("formatFloat(%v) = %q, want %q", in, got, want)
 		}
 	}
+}
+
+func FuzzLenientTypes(f *testing.F) {
+	for _, s := range []string{`"2017-06-14T00:00:00.000+09:00"`, `""`, `null`, `127.5`, `"37.1"`, `"Y"`, `"N"`, `"`, `{}`, `[1]`} {
+		f.Add([]byte(s))
+	}
+	f.Fuzz(func(_ *testing.T, b []byte) {
+		var tm Time
+		_ = tm.UnmarshalJSON(b)
+		var fl Float
+		_ = fl.UnmarshalJSON(b)
+		var yn YesNo
+		_ = yn.UnmarshalJSON(b)
+	})
 }

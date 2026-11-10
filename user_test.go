@@ -281,7 +281,7 @@ func TestUserService_ShippingAddress(t *testing.T) {
 		t.Errorf("query = %v", srv.LastRequest().Query)
 	}
 	a := res.Address
-	if res.UserID != 1 || res.NeedsAgreement || a == nil || a.ID != 300 || !a.IsDefault || a.UpdatedAt != 1658214426 || a.Type != "NEW" || a.ZoneNumber != "13529" {
+	if res.UserID != 1 || res.NeedsAgreement || a == nil || a.ID != 300 || !a.IsDefault || !a.UpdatedAt.Equal(time.Unix(1658214426, 0)) || a.Type != "NEW" || a.ZoneNumber != "13529" {
 		t.Errorf("res = %+v, address = %+v", res, a)
 	}
 	if _, err := c.User.ShippingAddress(t.Context(), AccessToken("AT"), 0); err != nil {

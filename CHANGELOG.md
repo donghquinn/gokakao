@@ -6,7 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+API review before v1.0.0 (breaking against earlier development commits):
+
+- Security events: `EventDetail` → `SecurityEventDetail`, `EventSubject` →
+  `SecurityEventSubject`, and the event constants are typed
+  `SecurityEventType` values named `SecurityEvent…`. `SecurityEvent.AppID`
+  is an `int64`.
+- Webhook callbacks return an `error`, and handlers accept options such as
+  `WithErrorHandler`. A callback error makes Kakao retry security events
+  (503); unlink callbacks still reply 200 as Kakao requires.
+- `template.Template` can no longer be implemented outside the package.
+- Push: `Device.UUID`/`PushToken.UUID` → `UserID int64`; `Tokens` takes a
+  slice; `Deregister` takes `*DeregisterOptions`; `APNsEnv` and `FCMPriority`
+  types. `webhook.PushFailure.UserID` and `webhook.UnlinkEvent.AppID` are
+  `int64`.
+- Calendar: `EventTime.StartAt`/`EndAt` are `time.Time` (`FormatEventTime`
+  removed); `UpdateEvent`, `UpdateGuestEvent` and `DeleteEvent` take changes
+  plus `*…Options`; `PublicEvents` takes `PublicEventsQuery`; `Task.TaskID` →
+  `Task.ID` with a `TaskStatus` type; the list filter is `TaskStatusFilter`
+  and `TasksQuery.Conditions`.
+- Map: `TransformCoord` takes `*CoordOptions`; `StaticMap` takes
+  `StaticMapParams` by value with an `ImageFormat` type.
+- `Talk.Profiles` takes `*ProfilesOptions`; `UserIDPage` → `UserIDsPage`;
+  `AuthService.TokenSource` takes `*TokenSourceOptions`;
+  `ShippingAddress.UpdatedAt` and `webhook.ChannelEvent.UpdatedAt` are
+  `kakao.Time`, which now also decodes Unix seconds.
+
 ### Added
+
+- CI: API compatibility check on pull requests, nightly live tests, and
+  GitHub releases on version tags.
+- Examples for every service.
 
 - Business Auth: `Client.Business` with `AuthCodeURL`, `Exchange`,
   `TokenInfo` and `Revoke`. Business user info is omitted because Kakao ends

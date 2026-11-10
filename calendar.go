@@ -50,19 +50,54 @@ const (
 
 // EventTime is when an event takes place.
 type EventTime struct {
-	// StartAt and EndAt are RFC 3339 UTC times on 5-minute boundaries.
-	// For all-day events they must be midnight, e.g.
-	// "2022-10-27T00:00:00Z". Use [FormatEventTime] to format them.
-	StartAt string `json:"start_at,omitempty"`
-	EndAt   string `json:"end_at,omitempty"`
+	// StartAt and EndAt must fall on 5-minute boundaries. For all-day
+	// events they must be midnight UTC, e.g. 2022-10-27T00:00:00Z. They
+	// are sent in UTC; zero values are omitted.
+	StartAt time.Time
+	EndAt   time.Time
 	// TimeZone is an IANA name; Kakao's default is Asia/Seoul.
+	TimeZone string
+	AllDay   bool
+	Lunar    bool
+}
+
+type eventTimeJSON struct {
+	StartAt  string `json:"start_at,omitempty"`
+	EndAt    string `json:"end_at,omitempty"`
 	TimeZone string `json:"time_zone,omitempty"`
 	AllDay   bool   `json:"all_day,omitempty"`
 	Lunar    bool   `json:"lunar,omitempty"`
 }
 
-// FormatEventTime formats t as an RFC 3339 UTC time for [EventTime].
-func FormatEventTime(t time.Time) string {
+// MarshalJSON implements [json.Marshaler].
+func (t EventTime) MarshalJSON() ([]byte, error) {
+	return json.Marshal(eventTimeJSON{
+		StartAt: formatUTC(t.StartAt), EndAt: formatUTC(t.EndAt),
+		TimeZone: t.TimeZone, AllDay: t.AllDay, Lunar: t.Lunar,
+	})
+}
+
+// UnmarshalJSON implements [json.Unmarshaler].
+func (t *EventTime) UnmarshalJSON(b []byte) error {
+	var aux struct {
+		StartAt  Time   `json:"start_at"`
+		EndAt    Time   `json:"end_at"`
+		TimeZone string `json:"time_zone"`
+		AllDay   bool   `json:"all_day"`
+		Lunar    bool   `json:"lunar"`
+	}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	*t = EventTime{StartAt: aux.StartAt.Time, EndAt: aux.EndAt.Time, TimeZone: aux.TimeZone, AllDay: aux.AllDay, Lunar: aux.Lunar}
+	return nil
+}
+
+// formatUTC formats t as an RFC 3339 UTC time, or "" if t is zero.
+func formatUTC(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
 	return t.UTC().Format(time.RFC3339)
 }
 
@@ -400,53 +435,55 @@ type EventChanges struct {
 	Clear []string `json:"-"`
 }
 
-// EventUpdate is an update to one of the user's events.
-type EventUpdate struct {
+// EventUpdateOptions are the optional parameters of
+// [CalendarService.UpdateEvent].
+type EventUpdateOptions struct {
 	// CalendarID moves the event to another calendar the app may write to.
 	CalendarID string
 	// RecurUpdateType is required for recurring events.
 	RecurUpdateType RecurUpdateType
-	Changes         *EventChanges
 }
 
-// UpdateEvent changes one of the user's own events. It returns the event
-// ID, which is empty for recurring events.
+// UpdateEvent changes one of the user's own events. changes may be empty
+// when opts moves the event to another calendar.
 //
 // Docs: https://developers.kakao.com/docs/ko/talkcalendar/rest-api
-func (s *CalendarService) UpdateEvent(ctx context.Context, accessToken, eventID string, update EventUpdate) (string, error) {
+func (s *CalendarService) UpdateEvent(ctx context.Context, accessToken, eventID string, changes EventChanges, opts *EventUpdateOptions) error {
 	if eventID == "" {
-		return "", errors.New("kakao: empty event ID")
+		return errors.New("kakao: empty event ID")
 	}
-	if update.CalendarID == "" && update.Changes == nil {
-		return "", errors.New("kakao: nothing to update")
+	var o EventUpdateOptions
+	if opts != nil {
+		o = *opts
 	}
-	form := url.Values{}
-	if update.Changes != nil {
-		var err error
-		if form, err = jsonForm("event", update.Changes, update.Changes.Clear); err != nil {
-			return "", err
-		}
+	form, err := changesForm("event", changes, changes.Clear, o.CalendarID)
+	if err != nil {
+		return err
 	}
 	form.Set("event_id", eventID)
-	setString(form, "calendar_id", update.CalendarID)
-	setString(form, "recur_update_type", string(update.RecurUpdateType))
-	var res struct {
-		EventID string `json:"event_id"`
-	}
-	err := s.user(ctx, accessToken, http.MethodPost, "/v2/api/calendar/update/event/host", form, &res)
-	return res.EventID, err
+	setString(form, "calendar_id", o.CalendarID)
+	setString(form, "recur_update_type", string(o.RecurUpdateType))
+	return s.user(ctx, accessToken, http.MethodPost, "/v2/api/calendar/update/event/host", form, nil)
 }
 
-// DeleteEvent deletes one of the user's events. recur is required for
-// recurring events and empty otherwise.
+// EventDeleteOptions are the optional parameters of
+// [CalendarService.DeleteEvent].
+type EventDeleteOptions struct {
+	// RecurUpdateType is required for recurring events.
+	RecurUpdateType RecurUpdateType
+}
+
+// DeleteEvent deletes one of the user's events.
 //
 // Docs: https://developers.kakao.com/docs/ko/talkcalendar/rest-api
-func (s *CalendarService) DeleteEvent(ctx context.Context, accessToken, eventID string, recur RecurUpdateType) error {
+func (s *CalendarService) DeleteEvent(ctx context.Context, accessToken, eventID string, opts *EventDeleteOptions) error {
 	if eventID == "" {
 		return errors.New("kakao: empty event ID")
 	}
 	q := url.Values{"event_id": {eventID}}
-	setString(q, "recur_update_type", string(recur))
+	if opts != nil {
+		setString(q, "recur_update_type", string(opts.RecurUpdateType))
+	}
 	return s.user(ctx, accessToken, http.MethodDelete, "/v2/api/calendar/delete/event", q, nil)
 }
 
@@ -460,27 +497,48 @@ type GuestEventChanges struct {
 	Clear []string `json:"-"`
 }
 
+// GuestEventUpdateOptions are the optional parameters of
+// [CalendarService.UpdateGuestEvent].
+type GuestEventUpdateOptions struct {
+	// CalendarID moves the event to another calendar.
+	CalendarID string
+}
+
 // UpdateGuestEvent changes the user's copy of an event they were invited
-// to. calendarID moves it to another calendar; empty keeps it in place.
+// to. changes may be empty when opts moves the event to another calendar.
 //
 // Docs: https://developers.kakao.com/docs/ko/talkcalendar/rest-api
-func (s *CalendarService) UpdateGuestEvent(ctx context.Context, accessToken, eventID, calendarID string, changes *GuestEventChanges) error {
+func (s *CalendarService) UpdateGuestEvent(ctx context.Context, accessToken, eventID string, changes GuestEventChanges, opts *GuestEventUpdateOptions) error {
 	if eventID == "" {
 		return errors.New("kakao: empty event ID")
 	}
-	if calendarID == "" && changes == nil {
-		return errors.New("kakao: nothing to update")
+	var calendarID string
+	if opts != nil {
+		calendarID = opts.CalendarID
 	}
-	form := url.Values{}
-	if changes != nil {
-		var err error
-		if form, err = jsonForm("event", changes, changes.Clear); err != nil {
-			return err
-		}
+	form, err := changesForm("event", changes, changes.Clear, calendarID)
+	if err != nil {
+		return err
 	}
 	form.Set("event_id", eventID)
 	setString(form, "calendar_id", calendarID)
 	return s.user(ctx, accessToken, http.MethodPost, "/v2/api/calendar/update/event/guest", form, nil)
+}
+
+// changesForm encodes changes under key, leaving it out when there are no
+// changes. It fails when there are neither changes nor a calendar move.
+func changesForm(key string, changes any, nullPaths []string, calendarID string) (url.Values, error) {
+	form, err := jsonForm(key, changes, nullPaths)
+	if err != nil {
+		return nil, err
+	}
+	if form.Get(key) == "{}" {
+		if calendarID == "" {
+			return nil, errors.New("kakao: nothing to update")
+		}
+		form.Del(key)
+	}
+	return form, nil
 }
 
 // --- Public events ---
@@ -542,21 +600,31 @@ type PublicEventsPage struct {
 	AfterURL string  `json:"after_url"`
 }
 
-// PublicEvents lists a channel's public events between from and to (at
-// most 31 days apart). limit is up to 30 (default 10). It uses the admin
-// key.
+// PublicEventsQuery selects public events for
+// [CalendarService.PublicEvents].
+type PublicEventsQuery struct {
+	// ChannelPublicID may be empty when the app has only one channel.
+	ChannelPublicID string
+	// From and To are required and at most 31 days apart.
+	From, To time.Time
+	Offset   int
+	// Limit is the page size, up to 30 (default 10).
+	Limit int
+}
+
+// PublicEvents lists a channel's public events. It uses the admin key.
 //
 // Docs: https://developers.kakao.com/docs/ko/talkcalendar/rest-api
-func (s *CalendarService) PublicEvents(ctx context.Context, channelPublicID string, from, to time.Time, offset, limit int) (*PublicEventsPage, error) {
-	if from.IsZero() || to.IsZero() {
+func (s *CalendarService) PublicEvents(ctx context.Context, query PublicEventsQuery) (*PublicEventsPage, error) {
+	if query.From.IsZero() || query.To.IsZero() {
 		return nil, errors.New("kakao: from and to are required")
 	}
 	q := url.Values{}
-	setString(q, "channel_public_id", channelPublicID)
-	setTime(q, "from", from)
-	setTime(q, "to", to)
-	setInt(q, "offset", offset)
-	setInt(q, "limit", limit)
+	setString(q, "channel_public_id", query.ChannelPublicID)
+	setTime(q, "from", query.From)
+	setTime(q, "to", query.To)
+	setInt(q, "offset", query.Offset)
+	setInt(q, "limit", query.Limit)
 	var res PublicEventsPage
 	if err := s.admin(ctx, http.MethodGet, "/v2/api/calendar/public/events", q, &res); err != nil {
 		return nil, err
@@ -776,38 +844,56 @@ func (s *CalendarService) CreateTask(ctx context.Context, accessToken string, ta
 	return res.TaskID, err
 }
 
-// Task is a task.
-type Task struct {
-	TaskID  string `json:"task_id"`
-	Content string `json:"content"`
-	// Status is "SCHEDULED" or "DELAYED" (past due).
-	Status     string   `json:"status"`
-	Bookmark   bool     `json:"bookmark"`
-	Authorized bool     `json:"authorized"` // may be changed or deleted
-	DueInfo    *DueInfo `json:"due_info"`
-	IsEnded    bool     `json:"is_ended"`
-}
-
-// TaskStatus filters tasks by completion.
+// TaskStatus is the due status of a task.
 type TaskStatus string
 
 // Task statuses.
 const (
-	TaskTodo      TaskStatus = "TODO" // default
-	TaskCompleted TaskStatus = "COMPLETED"
-	TaskAll       TaskStatus = "ALL"
+	TaskScheduled TaskStatus = "SCHEDULED" // not yet due
+	TaskDelayed   TaskStatus = "DELAYED"   // past due
+)
+
+// Task is a task.
+type Task struct {
+	ID         string     `json:"task_id"`
+	Content    string     `json:"content"`
+	Status     TaskStatus `json:"status"`
+	Bookmark   bool       `json:"bookmark"`
+	Authorized bool       `json:"authorized"` // may be changed or deleted
+	DueInfo    *DueInfo   `json:"due_info"`
+	IsEnded    bool       `json:"is_ended"`
+}
+
+// TaskStatusFilter selects tasks by completion.
+type TaskStatusFilter string
+
+// Task status filters.
+const (
+	TaskFilterTodo      TaskStatusFilter = "TODO" // default
+	TaskFilterCompleted TaskStatusFilter = "COMPLETED"
+	TaskFilterAll       TaskStatusFilter = "ALL"
+)
+
+// TaskCondition is a condition a listed task must meet.
+type TaskCondition string
+
+// Task conditions.
+const (
+	TaskAuthorized TaskCondition = "authorized" // may be changed or deleted
+	TaskBookmarked TaskCondition = "bookmark"
 )
 
 // TasksQuery selects tasks for [CalendarService.Tasks].
 type TasksQuery struct {
-	// From and To are "yyyyMMdd", at most 31 days apart. Required.
+	// From and To are dates as "yyyyMMdd" in TimeZone, at most 31 days
+	// apart. Required.
 	From, To string
-	Status   TaskStatus
-	// Filters are "authorized" and/or "bookmark"; all must match.
-	Filters  []string
-	Offset   int
-	Limit    int // up to 1000 (default 100)
-	TimeZone string
+	Status   TaskStatusFilter
+	// Conditions must all be met.
+	Conditions []TaskCondition
+	Offset     int
+	Limit      int // up to 1000 (default 100)
+	TimeZone   string
 }
 
 // TasksPage is a page of tasks.
@@ -827,7 +913,11 @@ func (s *CalendarService) Tasks(ctx context.Context, accessToken string, query T
 	}
 	q := url.Values{"from": {query.From}, "to": {query.To}}
 	setString(q, "task_status", string(query.Status))
-	setString(q, "task_filter", strings.Join(query.Filters, ","))
+	conds := make([]string, len(query.Conditions))
+	for i, c := range query.Conditions {
+		conds[i] = string(c)
+	}
+	setString(q, "task_filter", strings.Join(conds, ","))
 	setInt(q, "offset", query.Offset)
 	setInt(q, "limit", query.Limit)
 	setString(q, "time_zone", query.TimeZone)
@@ -997,9 +1087,7 @@ func setNull(m map[string]any, path []string) {
 
 // setTime sets key to t as an RFC 3339 UTC time unless t is zero.
 func setTime(q url.Values, key string, t time.Time) {
-	if !t.IsZero() {
-		q.Set(key, FormatEventTime(t))
-	}
+	setString(q, key, formatUTC(t))
 }
 
 // queryParam returns the value of key in the query of rawURL.

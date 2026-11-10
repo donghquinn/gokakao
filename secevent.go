@@ -5,33 +5,39 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 )
 
+// SecurityEventType is the schema URI of a security event type, the key of
+// [SecurityEvent.Events].
+type SecurityEventType string
+
 // Security event types sent by the account status webhook (계정 상태 변경
-// 웹훅), keyed by their schema URI in [SecurityEvent.Events].
+// 웹훅).
 //
 //nolint:gosec // event type URIs, not credentials
 const (
-	// EventTokensRevoked is sent when all of a user's tokens are revoked,
+	// SecurityEventTokensRevoked is sent when all of a user's tokens are revoked,
 	// and with TokenClass "business" when all business tokens are revoked.
-	EventTokensRevoked                   = "https://schemas.openid.net/secevent/oauth/event-type/tokens-revoked"
-	EventUserLinked                      = "https://schemas.openid.net/secevent/oauth/event-type/user-linked"
-	EventUserUnlinked                    = "https://schemas.openid.net/secevent/oauth/event-type/user-unlinked"
-	EventUserScopeConsent                = "https://schemas.openid.net/secevent/oauth/event-type/user-scope-consent"
-	EventUserScopeWithdraw               = "https://schemas.openid.net/secevent/oauth/event-type/user-scope-withdraw"
-	EventBusinessTokenIssued             = "https://schemas.openid.net/secevent/oauth/event-type/token-issued"
-	EventBusinessTokenRevoked            = "https://schemas.openid.net/secevent/oauth/event-type/token-revoked"
-	EventAccountCredentialChangeRequired = "https://schemas.openid.net/secevent/risc/event-type/account-credential-change-required"
-	EventAccountDisabled                 = "https://schemas.openid.net/secevent/risc/event-type/account-disabled"
-	EventAccountEnabled                  = "https://schemas.openid.net/secevent/risc/event-type/account-enabled"
-	EventAccountPurged                   = "https://schemas.openid.net/secevent/risc/event-type/account-purged"
-	EventCredentialCompromise            = "https://schemas.openid.net/secevent/risc/event-type/credential-compromise"
-	EventIdentifierChanged               = "https://schemas.openid.net/secevent/risc/event-type/identifier-changed"
-	EventIdentifierRecycled              = "https://schemas.openid.net/secevent/risc/event-type/identifier-recycled"
-	EventSessionsRevoked                 = "https://schemas.openid.net/secevent/risc/event-type/sessions-revoked"
-	EventAssuranceLevelChange            = "https://schemas.openid.net/secevent/caep/event-type/assurance-level-change"
-	EventCredentialChange                = "https://schemas.openid.net/secevent/caep/event-type/credential-change"
-	EventUserProfileChanged              = "https://schemas.kakao.com/platevent/kakao/event-type/user-profile-changed"
+	SecurityEventTokensRevoked                   SecurityEventType = "https://schemas.openid.net/secevent/oauth/event-type/tokens-revoked"
+	SecurityEventUserLinked                      SecurityEventType = "https://schemas.openid.net/secevent/oauth/event-type/user-linked"
+	SecurityEventUserUnlinked                    SecurityEventType = "https://schemas.openid.net/secevent/oauth/event-type/user-unlinked"
+	SecurityEventUserScopeConsent                SecurityEventType = "https://schemas.openid.net/secevent/oauth/event-type/user-scope-consent"
+	SecurityEventUserScopeWithdraw               SecurityEventType = "https://schemas.openid.net/secevent/oauth/event-type/user-scope-withdraw"
+	SecurityEventBusinessTokenIssued             SecurityEventType = "https://schemas.openid.net/secevent/oauth/event-type/token-issued"
+	SecurityEventBusinessTokenRevoked            SecurityEventType = "https://schemas.openid.net/secevent/oauth/event-type/token-revoked"
+	SecurityEventAccountCredentialChangeRequired SecurityEventType = "https://schemas.openid.net/secevent/risc/event-type/account-credential-change-required"
+	SecurityEventAccountDisabled                 SecurityEventType = "https://schemas.openid.net/secevent/risc/event-type/account-disabled"
+	SecurityEventAccountEnabled                  SecurityEventType = "https://schemas.openid.net/secevent/risc/event-type/account-enabled"
+	SecurityEventAccountPurged                   SecurityEventType = "https://schemas.openid.net/secevent/risc/event-type/account-purged"
+	SecurityEventCredentialCompromise            SecurityEventType = "https://schemas.openid.net/secevent/risc/event-type/credential-compromise"
+	SecurityEventIdentifierChanged               SecurityEventType = "https://schemas.openid.net/secevent/risc/event-type/identifier-changed"
+	SecurityEventIdentifierRecycled              SecurityEventType = "https://schemas.openid.net/secevent/risc/event-type/identifier-recycled"
+	SecurityEventSessionsRevoked                 SecurityEventType = "https://schemas.openid.net/secevent/risc/event-type/sessions-revoked"
+	SecurityEventAssuranceLevelChange            SecurityEventType = "https://schemas.openid.net/secevent/caep/event-type/assurance-level-change"
+	SecurityEventCredentialChange                SecurityEventType = "https://schemas.openid.net/secevent/caep/event-type/credential-change"
+	SecurityEventUserProfileChanged              SecurityEventType = "https://schemas.kakao.com/platevent/kakao/event-type/user-profile-changed"
 )
 
 // SecurityEvent is a verified Security Event Token (SET) from the account
@@ -43,7 +49,7 @@ type SecurityEvent struct {
 	// Subject is the user ID.
 	Subject string `json:"sub"`
 	// AppID is the app ID.
-	AppID string `json:"app_id"`
+	AppID int64 `json:"-"`
 	// JTI uniquely identifies the SET; use it to drop duplicate deliveries.
 	JTI string `json:"jti"`
 	// TransactionID identifies the webhook request.
@@ -52,18 +58,20 @@ type SecurityEvent struct {
 	TimeOfEvent int64 `json:"toe"`
 	// IssuedAt is when the SET was issued, in Unix seconds.
 	IssuedAt int64 `json:"iat"`
-	// Events maps event type URIs, such as [EventUserUnlinked], to their
+	// Events maps event type URIs, such as [SecurityEventUserUnlinked], to their
 	// details. A SET usually carries one event.
-	Events map[string]EventDetail `json:"events"`
+	Events map[SecurityEventType]SecurityEventDetail `json:"events"`
 }
 
 // UnmarshalJSON implements [json.Unmarshaler]. Kakao documents the
-// transaction claim as "txm"; both "txn" and "txm" are accepted.
+// transaction claim as "txm"; both "txn" and "txm" are accepted. app_id may
+// be a string or a number.
 func (e *SecurityEvent) UnmarshalJSON(b []byte) error {
 	type alias SecurityEvent
 	aux := struct {
 		*alias
-		Txm string `json:"txm"`
+		Txm   string          `json:"txm"`
+		AppID json.RawMessage `json:"app_id"`
 	}{alias: (*alias)(e)}
 	if err := json.Unmarshal(b, &aux); err != nil {
 		return err
@@ -71,15 +79,22 @@ func (e *SecurityEvent) UnmarshalJSON(b []byte) error {
 	if e.TransactionID == "" {
 		e.TransactionID = aux.Txm
 	}
+	if len(aux.AppID) > 0 && string(aux.AppID) != "null" {
+		id, err := strconv.ParseInt(strings.Trim(string(aux.AppID), `"`), 10, 64)
+		if err != nil {
+			return fmt.Errorf("kakao: app_id: %w", err)
+		}
+		e.AppID = id
+	}
 	return nil
 }
 
-// EventDetail holds the fields of one security event. Which fields are
+// SecurityEventDetail holds the fields of one security event. Which fields are
 // set depends on the event type; see the Kakao docs.
-type EventDetail struct {
+type SecurityEventDetail struct {
 	// Subject identifies the user, business token or identifier the event
 	// is about.
-	Subject *EventSubject `json:"subject"`
+	Subject *SecurityEventSubject `json:"subject"`
 	// Reason explains tokens-revoked ("issuer" or "user"), user-unlinked
 	// (e.g. "UNLINK_FROM_APPS") and account-disabled events.
 	Reason string `json:"reason"`
@@ -87,9 +102,9 @@ type EventDetail struct {
 	Scope string `json:"scope"`
 	// TokenSubject, TokenID and TokenClass describe business token events.
 	// TokenClass is "business".
-	TokenSubject *EventSubject `json:"token_subject"`
-	TokenID      string        `json:"token_id"`
-	TokenClass   string        `json:"token_class"`
+	TokenSubject *SecurityEventSubject `json:"token_subject"`
+	TokenID      string                `json:"token_id"`
+	TokenClass   string                `json:"token_class"`
 	// NewValue is the new or recycled phone number or email for identifier
 	// events.
 	NewValue string `json:"new_value"`
@@ -106,8 +121,8 @@ type EventDetail struct {
 	Profile string `json:"profile"`
 }
 
-// EventSubject identifies what a security event is about.
-type EventSubject struct {
+// SecurityEventSubject identifies what a security event is about.
+type SecurityEventSubject struct {
 	// SubjectType is "iss-sub", "phone", "account_email" or, for business
 	// tokens, "oauth_token".
 	SubjectType string `json:"subject_type"`

@@ -225,14 +225,16 @@ func (s *MapService) CoordToAddress(ctx context.Context, p Point, opts *CoordOpt
 	return res.Documents, nil
 }
 
-// TransformCoord converts p from one coordinate system to another.
-// Empty systems default to WGS84.
+// TransformCoord converts p from opts.InputCoord to opts.OutputCoord, which
+// may be any [CoordSystem]. Empty systems default to WGS84.
 //
 // Docs: https://developers.kakao.com/docs/ko/kakaomap/rest-api
-func (s *MapService) TransformCoord(ctx context.Context, p Point, from, to CoordSystem) (Point, error) {
+func (s *MapService) TransformCoord(ctx context.Context, p Point, opts *CoordOptions) (Point, error) {
 	q := pointQuery(p)
-	setString(q, "input_coord", string(from))
-	setString(q, "output_coord", string(to))
+	if opts != nil {
+		setString(q, "input_coord", string(opts.InputCoord))
+		setString(q, "output_coord", string(opts.OutputCoord))
+	}
 	var res SearchResult[struct {
 		X Float `json:"x"`
 		Y Float `json:"y"`
@@ -633,6 +635,15 @@ const (
 	LogoTopRight    LogoPosition = "TOP_RIGHT"
 )
 
+// ImageFormat is a static map image format.
+type ImageFormat string
+
+// Image formats.
+const (
+	ImagePNG  ImageFormat = "png" // default
+	ImageJPEG ImageFormat = "jpg"
+)
+
 // StaticMapParams are the parameters of [MapService.StaticMap].
 // Width and Height are required, and so is at least one of Center or
 // Markers.
@@ -640,9 +651,8 @@ type StaticMapParams struct {
 	Width, Height int // pixels, up to 2048x1024
 	Center        *Point
 	Markers       []Marker // up to 5
-	// Format is "png" (default) or "jpg".
-	Format  string
-	LogoPos LogoPosition
+	Format        ImageFormat
+	LogoPos       LogoPosition
 	// Scale is 1 or 2 (default). At 2 the image is twice Width x Height.
 	Scale int
 	// Level is the zoom level, 1-15 (default 3).
@@ -660,8 +670,8 @@ type Image struct {
 // StaticMap renders a map image.
 //
 // Docs: https://developers.kakao.com/docs/ko/kakaomap/rest-api
-func (s *MapService) StaticMap(ctx context.Context, p *StaticMapParams) (*Image, error) {
-	if p == nil || p.Width <= 0 || p.Height <= 0 {
+func (s *MapService) StaticMap(ctx context.Context, p StaticMapParams) (*Image, error) {
+	if p.Width <= 0 || p.Height <= 0 {
 		return nil, errors.New("kakao: static map width and height are required")
 	}
 	if p.Center == nil && len(p.Markers) == 0 {
@@ -674,7 +684,7 @@ func (s *MapService) StaticMap(ctx context.Context, p *StaticMapParams) (*Image,
 	for _, m := range p.Markers {
 		q.Add("markers", "location:"+m.Location.String()+"|option:"+strconv.FormatBool(m.ExcludeFromBounds))
 	}
-	setString(q, "format", p.Format)
+	setString(q, "format", string(p.Format))
 	setString(q, "logo_pos", string(p.LogoPos))
 	setInt(q, "scale", p.Scale)
 	setInt(q, "lv", p.Level)

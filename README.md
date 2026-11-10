@@ -5,8 +5,9 @@
 
 A Go client for the [Kakao Developers](https://developers.kakao.com/docs/ko) REST APIs.
 
-> **Status: early development (v0.x).** The API may change before v1.0.0.
-> See [PLAN.md](PLAN.md) for the roadmap.
+> **Status: release candidate.** All non-advertising Kakao Developers REST APIs
+> are implemented and the API has been reviewed for v1.0.0. It may still change
+> until v1.0.0 is tagged. See [PLAN.md](PLAN.md) for the roadmap.
 
 - No dependencies outside the standard library
 - Typed errors for Kakao error codes (`errors.Is(err, kakao.ErrInvalidToken)`)
@@ -51,7 +52,7 @@ me, err := c.User.Me(ctx, kakao.AccessToken(tok.AccessToken), nil)
 _, err = c.User.Unlink(ctx, kakao.AsAdmin(userID))
 
 // Keep tokens fresh; onRefresh persists rotated tokens.
-ts := c.Auth.TokenSource(tok, func(t *kakao.Token) { save(t) })
+ts := c.Auth.TokenSource(tok, &kakao.TokenSourceOptions{OnRefresh: save})
 fresh, err := ts.Token(ctx)
 ```
 
@@ -106,18 +107,15 @@ Templates: `template.Feed`, `List`, `Commerce`, `Location`, `Text`, `Calendar`.
 ```go
 id, err := c.Calendar.CreateEvent(ctx, accessToken, kakao.PrimaryCalendar, kakao.NewEvent{
 	Title: "회의",
-	Time: kakao.EventTime{
-		StartAt: kakao.FormatEventTime(start), EndAt: kakao.FormatEventTime(start.Add(time.Hour)),
-	},
+	Time:  kakao.EventTime{StartAt: start, EndAt: start.Add(time.Hour)},
 	Reminders: []int{15},
 })
 for e, err := range c.Calendar.AllEvents(ctx, accessToken, kakao.EventsQuery{Preset: kakao.PresetThisWeek}) { ... }
 
 // Updates keep omitted fields; list fields to remove in Clear.
 title := "회의 (변경)"
-_, err = c.Calendar.UpdateEvent(ctx, accessToken, id, kakao.EventUpdate{
-	Changes: &kakao.EventChanges{Title: &title, Clear: []string{"location"}},
-})
+err = c.Calendar.UpdateEvent(ctx, accessToken, id,
+	kakao.EventChanges{Title: &title, Clear: []string{"location"}}, nil)
 
 err = c.Push.Send(ctx, []int64{userID}, kakao.PushMessage{
 	FCM: &kakao.FCMMessage{Notification: map[string]any{"title": "새 댓글", "body": "확인해 보세요"}},
@@ -136,13 +134,18 @@ err = c.Push.Send(ctx, []int64{userID}, kakao.PushMessage{
 ```go
 import "github.com/donghquinn/gokakao/webhook"
 
-mux.Handle("/kakao/unlink", webhook.UnlinkHandler(primaryAdminKey, func(r *http.Request, e *webhook.UnlinkEvent) {
-	queue.Enqueue(deleteUser(e.UserID)) // reply within 3 s; do slow work elsewhere
-}))
+logErrors := webhook.WithErrorHandler(func(r *http.Request, err error) { log.Print(err) })
+
+mux.Handle("/kakao/unlink", webhook.UnlinkHandler(primaryAdminKey, func(r *http.Request, e *webhook.UnlinkEvent) error {
+	return queue.Enqueue(deleteUser(e.UserID)) // reply within 3 s; do slow work elsewhere
+}, logErrors))
 // Verifies the Security Event Token (RS256, iss, aud) and replies 202 / 400 / 503 as Kakao expects.
-mux.Handle("POST /kakao/events", webhook.SecurityEventHandler(c.Auth, func(r *http.Request, e *kakao.SecurityEvent) {
-	if d, ok := e.Events[kakao.EventSessionsRevoked]; ok { ... }
-}))
+mux.Handle("POST /kakao/events", webhook.SecurityEventHandler(c.Auth, func(r *http.Request, e *kakao.SecurityEvent) error {
+	if _, ok := e.Events[kakao.SecurityEventSessionsRevoked]; ok {
+		return sessions.RevokeAll(e.Subject) // an error makes Kakao retry
+	}
+	return nil
+}, logErrors))
 mux.Handle("POST /kakao/channel", webhook.ChannelHandler(primaryAdminKey, onChannelEvent))
 mux.Handle("/kakao/share", webhook.ShareHandler(primaryAdminKey, onShare))
 mux.Handle("POST /kakao/push-failed/{secret}", webhook.PushFailureHandler(onPushFailure))
@@ -192,7 +195,7 @@ places, err := c.Map.SearchKeyword(ctx, "카페", &kakao.PlaceSearchOptions{
 addrs, err := c.Map.SearchAddress(ctx, "판교역로 166", nil)
 regions, err := c.Map.CoordToRegionCode(ctx, pangyo, nil)
 route, err := c.Map.WalkingRoute(ctx, pangyo, kakao.Point{X: 127.1263, Y: 37.4199}, nil)
-img, err := c.Map.StaticMap(ctx, &kakao.StaticMapParams{Width: 640, Height: 480, Center: &pangyo})
+img, err := c.Map.StaticMap(ctx, kakao.StaticMapParams{Width: 640, Height: 480, Center: &pangyo})
 ```
 
 | Method | Kakao API |

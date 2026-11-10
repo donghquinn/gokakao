@@ -327,12 +327,18 @@ type TalkProfileInfo struct {
 	ThumbnailImage string `json:"thumbnail_image"`
 }
 
+// ProfilesOptions are the optional parameters of [TalkService.Profiles].
+type ProfilesOptions struct {
+	// ViewerID returns the profiles as this user sees them, including
+	// multi-profiles, and the viewer's own profile.
+	ViewerID int64
+}
+
 // Profiles returns the KakaoTalk profiles of several users with the admin
-// key. With a non-zero viewerID, the profiles are those viewerID sees.
-// The call fails if any target is not linked to the app.
+// key. The call fails if any target is not linked to the app.
 //
 // Docs: https://developers.kakao.com/docs/ko/kakaotalk-social/rest-api
-func (s *TalkService) Profiles(ctx context.Context, userIDs []int64, viewerID int64) (*TalkProfiles, error) {
+func (s *TalkService) Profiles(ctx context.Context, userIDs []int64, opts *ProfilesOptions) (*TalkProfiles, error) {
 	if len(userIDs) == 0 {
 		return nil, errors.New("kakao: no user IDs")
 	}
@@ -340,8 +346,8 @@ func (s *TalkService) Profiles(ctx context.Context, userIDs []int64, viewerID in
 	if err := setJSON(q, "target_ids", userIDs); err != nil {
 		return nil, err
 	}
-	if viewerID != 0 {
-		q.Set("viewer_id", strconv.FormatInt(viewerID, 10))
+	if opts != nil && opts.ViewerID != 0 {
+		q.Set("viewer_id", strconv.FormatInt(opts.ViewerID, 10))
 		q.Set("viewer_id_type", "user_id")
 	}
 	var res TalkProfiles

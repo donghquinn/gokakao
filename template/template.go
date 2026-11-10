@@ -10,10 +10,13 @@ package template
 import "encoding/json"
 
 // Template is a default message template: [Feed], [List], [Commerce],
-// [Location], [Text] or [Calendar].
+// [Location], [Text] or [Calendar]. It cannot be implemented outside this
+// package.
 type Template interface {
 	// ObjectType returns the template's object_type, e.g. "feed".
 	ObjectType() string
+	json.Marshaler
+	isTemplate()
 }
 
 var (
@@ -124,6 +127,8 @@ type Feed struct {
 	Buttons []Button `json:"buttons,omitempty"`
 }
 
+func (Feed) isTemplate() {}
+
 // ObjectType implements [Template].
 func (Feed) ObjectType() string { return "feed" }
 
@@ -142,6 +147,8 @@ type List struct {
 	Buttons     []Button  `json:"buttons,omitempty"`
 }
 
+func (List) isTemplate() {}
+
 // ObjectType implements [Template].
 func (List) ObjectType() string { return "list" }
 
@@ -158,6 +165,8 @@ type Commerce struct {
 	ButtonTitle string       `json:"button_title,omitempty"`
 	Buttons     []Button     `json:"buttons,omitempty"`
 }
+
+func (Commerce) isTemplate() {}
 
 // ObjectType implements [Template].
 func (Commerce) ObjectType() string { return "commerce" }
@@ -180,6 +189,8 @@ type Location struct {
 	Buttons      []Button `json:"buttons,omitempty"`
 }
 
+func (Location) isTemplate() {}
+
 // ObjectType implements [Template].
 func (Location) ObjectType() string { return "location" }
 
@@ -196,6 +207,8 @@ type Text struct {
 	ButtonTitle string   `json:"button_title,omitempty"`
 	Buttons     []Button `json:"buttons,omitempty"`
 }
+
+func (Text) isTemplate() {}
 
 // ObjectType implements [Template].
 func (Text) ObjectType() string { return "text" }
@@ -224,6 +237,8 @@ type Calendar struct {
 	// Buttons adds at most 1 button to the default one.
 	Buttons []Button `json:"buttons,omitempty"`
 }
+
+func (Calendar) isTemplate() {}
 
 // ObjectType implements [Template].
 func (Calendar) ObjectType() string { return "calendar" }

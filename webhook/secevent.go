@@ -33,7 +33,8 @@ var _ SecurityEventVerifier = (*kakao.AuthService)(nil)
 // [kakao.SecurityEvent.JTI] to drop duplicates.
 //
 // Docs: https://developers.kakao.com/docs/ko/kakaologin/callback
-func SecurityEventHandler(v SecurityEventVerifier, fn func(r *http.Request, e *kakao.SecurityEvent)) http.Handler {
+func SecurityEventHandler(v SecurityEventVerifier, fn func(r *http.Request, e *kakao.SecurityEvent) error, opts ...Option) http.Handler {
+	o := newOptions(opts)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
@@ -42,11 +43,13 @@ func SecurityEventHandler(v SecurityEventVerifier, fn func(r *http.Request, e *k
 		}
 		b, err := readBody(r)
 		if err != nil {
+			o.report(r, err)
 			writeSETError(w, &kakao.SETError{Code: "invalid_request", Description: err.Error()})
 			return
 		}
 		e, err := v.VerifySecurityEvent(r.Context(), string(bytes.TrimSpace(b)))
 		if err != nil {
+			o.report(r, err)
 			var se *kakao.SETError
 			if errors.As(err, &se) {
 				writeSETError(w, se)
@@ -55,7 +58,11 @@ func SecurityEventHandler(v SecurityEventVerifier, fn func(r *http.Request, e *k
 			http.Error(w, "cannot verify security event", http.StatusServiceUnavailable)
 			return
 		}
-		fn(r, e)
+		if err := fn(r, e); err != nil {
+			o.report(r, err)
+			http.Error(w, "cannot process security event", http.StatusServiceUnavailable)
+			return
+		}
 		w.WriteHeader(http.StatusAccepted)
 	})
 }

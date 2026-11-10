@@ -205,12 +205,12 @@ func TestTokenSource(t *testing.T) {
 	ts := c.Auth.TokenSource(&Token{
 		AccessToken: "AT1", RefreshToken: "RT1", Expiry: now.Add(10 * time.Minute),
 		RefreshTokenExpiry: now.Add(30 * 24 * time.Hour),
-	}, func(tok *Token) {
+	}, &TokenSourceOptions{OnRefresh: func(tok *Token) {
 		refreshes.Add(1)
 		mu.Lock()
 		saved = append(saved, tok)
 		mu.Unlock()
-	})
+	}})
 
 	tok, err := ts.Token(t.Context())
 	if err != nil || tok.AccessToken != "AT1" {

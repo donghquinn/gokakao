@@ -231,8 +231,8 @@ type UserIDsOptions struct {
 	Descending bool
 }
 
-// UserIDPage is a page of user IDs.
-type UserIDPage struct {
+// UserIDsPage is a page of user IDs.
+type UserIDsPage struct {
 	Elements  []int64 `json:"elements"`
 	BeforeURL string  `json:"before_url"`
 	// AfterURL is empty on the last page.
@@ -243,7 +243,7 @@ type UserIDPage struct {
 // the admin key. Kakao allows 100 calls per minute per app.
 //
 // Docs: https://developers.kakao.com/docs/ko/kakaologin/rest-api
-func (s *UserService) UserIDs(ctx context.Context, opts *UserIDsOptions) (*UserIDPage, error) {
+func (s *UserService) UserIDs(ctx context.Context, opts *UserIDsOptions) (*UserIDsPage, error) {
 	q := url.Values{}
 	if opts != nil {
 		setInt(q, "limit", opts.Limit)
@@ -254,7 +254,7 @@ func (s *UserService) UserIDs(ctx context.Context, opts *UserIDsOptions) (*UserI
 			q.Set("order", "desc")
 		}
 	}
-	var page UserIDPage
+	var page UserIDsPage
 	err := s.c.do(ctx, &request{method: http.MethodGet, host: HostAPI, path: "/v1/user/ids", auth: authAdminKey, query: q}, &page)
 	if err != nil {
 		return nil, err
@@ -406,8 +406,7 @@ type ShippingAddress struct {
 	ID        int64  `json:"id"`
 	Name      string `json:"name"`
 	IsDefault bool   `json:"is_default"`
-	// UpdatedAt is in Unix seconds.
-	UpdatedAt int64 `json:"updated_at"`
+	UpdatedAt Time   `json:"updated_at"`
 	// Type is "OLD" (lot-number) or "NEW" (road-name).
 	Type                 string `json:"type"`
 	BaseAddress          string `json:"base_address"`

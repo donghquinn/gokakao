@@ -2,6 +2,7 @@ package kakao
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -100,7 +101,9 @@ func TestCalendarService_requests(t *testing.T) {
 		},
 		{
 			"delete event", "DELETE /v2/api/calendar/delete/event", `{"event_id":"e1"}`,
-			func(ctx context.Context, c *Client) error { return c.Calendar.DeleteEvent(ctx, "AT", "e1", RecurThis) },
+			func(ctx context.Context, c *Client) error {
+				return c.Calendar.DeleteEvent(ctx, "AT", "e1", &EventDeleteOptions{RecurUpdateType: RecurThis})
+			},
 			"Bearer AT",
 			url.Values{"event_id": {"e1"}, "recur_update_type": {"THIS"}},
 			nil,
@@ -108,7 +111,7 @@ func TestCalendarService_requests(t *testing.T) {
 		{
 			"update guest event", "POST /v2/api/calendar/update/event/guest", `{}`,
 			func(ctx context.Context, c *Client) error {
-				return c.Calendar.UpdateGuestEvent(ctx, "AT", "e1", "primary", &GuestEventChanges{Memo: ptr("메모"), Clear: []string{"reminders"}})
+				return c.Calendar.UpdateGuestEvent(ctx, "AT", "e1", GuestEventChanges{Memo: ptr("메모"), Clear: []string{"reminders"}}, &GuestEventUpdateOptions{CalendarID: "primary"})
 			},
 			"Bearer AT", nil,
 			url.Values{"event_id": {"e1"}, "calendar_id": {"primary"}, "event": {`{"memo":"메모","reminders":null}`}},
@@ -116,7 +119,7 @@ func TestCalendarService_requests(t *testing.T) {
 		{
 			"public events", "GET /v2/api/calendar/public/events", `{"events":[],"has_next":false}`,
 			func(ctx context.Context, c *Client) error {
-				_, err := c.Calendar.PublicEvents(ctx, "_xnrxjem", from, to, 3, 10)
+				_, err := c.Calendar.PublicEvents(ctx, PublicEventsQuery{ChannelPublicID: "_xnrxjem", From: from, To: to, Offset: 3, Limit: 10})
 				return err
 			},
 			"KakaoAK admin",
@@ -189,7 +192,7 @@ func TestCalendarService_requests(t *testing.T) {
 		{
 			"tasks", "GET /v1/api/calendar/tasks", `{"tasks":[],"count":0}`,
 			func(ctx context.Context, c *Client) error {
-				_, err := c.Calendar.Tasks(ctx, "AT", TasksQuery{From: "20231208", To: "20231215", Status: TaskAll, Filters: []string{"authorized", "bookmark"}, Offset: 4, Limit: 4, TimeZone: "Asia/Seoul"})
+				_, err := c.Calendar.Tasks(ctx, "AT", TasksQuery{From: "20231208", To: "20231215", Status: TaskFilterAll, Conditions: []TaskCondition{TaskAuthorized, TaskBookmarked}, Offset: 4, Limit: 4, TimeZone: "Asia/Seoul"})
 				return err
 			},
 			"Bearer AT",
@@ -274,8 +277,8 @@ func TestCalendarService_events(t *testing.T) {
 	id, err := c.Calendar.CreateEvent(t.Context(), "AT", "user_63759daa38e1f752188e0cc9", NewEvent{
 		Title: "일정 제목",
 		Time: EventTime{
-			StartAt: FormatEventTime(time.Date(2022, 10, 27, 12, 0, 0, 0, time.FixedZone("KST", 9*3600))),
-			EndAt:   "2022-10-27T06:00:00Z", TimeZone: "Asia/Seoul",
+			StartAt: time.Date(2022, 10, 27, 12, 0, 0, 0, time.FixedZone("KST", 9*3600)),
+			EndAt:   time.Date(2022, 10, 27, 6, 0, 0, 0, time.UTC), TimeZone: "Asia/Seoul",
 		},
 		RRule:       "FREQ=DAILY;UNTIL=20221031T000000Z",
 		Description: "일정 설명",
@@ -306,25 +309,24 @@ func TestCalendarService_events(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.Title != "일정 제목" || e.Type != EventTypeUser || !e.IsHost || !e.IsRecurEvent || e.Time.TimeZone != "Asia/Seoul" ||
+	if e.Title != "일정 제목" || e.Type != EventTypeUser || !e.IsHost || !e.IsRecurEvent || e.Time.TimeZone != "Asia/Seoul" || !e.Time.StartAt.Equal(time.Date(2022, 10, 27, 3, 0, 0, 0, time.UTC)) ||
 		e.Location == nil || e.Location.LocationID != 18577297 || !slices.Equal(e.Reminders, []int{15, 30}) ||
 		e.Banner == nil || e.Banner.Link == nil || e.Banner.Link.WebURL != "https://example.com" {
 		t.Errorf("event = %+v", e)
 	}
 
-	id, err = c.Calendar.UpdateEvent(t.Context(), "AT", "e1", EventUpdate{
-		CalendarID: "primary", RecurUpdateType: RecurAll,
-		Changes: &EventChanges{Title: ptr("수정"), Reminders: []int{5}, Clear: []string{"description"}},
-	})
-	if err != nil || id != "e1" {
-		t.Fatalf("UpdateEvent = %q, %v", id, err)
+	err = c.Calendar.UpdateEvent(t.Context(), "AT", "e1",
+		EventChanges{Title: ptr("수정"), Reminders: []int{5}, Clear: []string{"description"}},
+		&EventUpdateOptions{CalendarID: "primary", RecurUpdateType: RecurAll})
+	if err != nil {
+		t.Fatalf("UpdateEvent: %v", err)
 	}
 	f = srv.LastRequest().Form()
 	if f.Get("event_id") != "e1" || f.Get("calendar_id") != "primary" || f.Get("recur_update_type") != "ALL" ||
 		f.Get("event") != `{"description":null,"reminders":[5],"title":"수정"}` {
 		t.Errorf("form = %v", f)
 	}
-	if _, err := c.Calendar.UpdateEvent(t.Context(), "AT", "e1", EventUpdate{CalendarID: "primary"}); err != nil {
+	if err := c.Calendar.UpdateEvent(t.Context(), "AT", "e1", EventChanges{}, &EventUpdateOptions{CalendarID: "primary"}); err != nil {
 		t.Fatal(err)
 	}
 	if srv.LastRequest().Form().Has("event") {
@@ -380,7 +382,7 @@ func TestCalendarService_publicEvents(t *testing.T) {
 
 	id, err := c.Calendar.CreatePublicEvent(t.Context(), "_xnrxjem", NewPublicEvent{
 		Title: "공개 일정",
-		Time:  EventTime{StartAt: "2022-12-01T00:00:00Z", EndAt: "2022-12-02T00:00:00Z", AllDay: true},
+		Time:  EventTime{StartAt: time.Date(2022, 12, 1, 0, 0, 0, 0, time.UTC), EndAt: time.Date(2022, 12, 2, 0, 0, 0, 0, time.UTC), AllDay: true},
 		NotificationMessage: &NotificationMessage{
 			DisplayCustomButton: ptr(true),
 			BeforeEventReminder: &EventReminder{Button: &ReminderButton{Title: "예매하기", Link: CalendarLink{WebURL: "https://example.com"}}},
@@ -455,7 +457,7 @@ func TestCalendarService_responses(t *testing.T) {
 	if q := srv.LastRequest().Query; len(q) != 1 || q.Get("task_id") != "t1" {
 		t.Errorf("query = %v", q)
 	}
-	if task.Status != "SCHEDULED" || !task.Bookmark || task.DueInfo.Recur.RRule != "FREQ=DAILY;COUNT=3" {
+	if task.Status != TaskScheduled || !task.Bookmark || task.DueInfo.Recur.RRule != "FREQ=DAILY;COUNT=3" {
 		t.Errorf("task = %+v", task)
 	}
 
@@ -479,14 +481,15 @@ func TestCalendarService_validation(t *testing.T) {
 		"events without range":         func() error { _, err := c.Calendar.Events(ctx, "AT", EventsQuery{From: now}); return err },
 		"event without ID":             func() error { _, err := c.Calendar.Event(ctx, "AT", ""); return err },
 		"update event without ID": func() error {
-			_, err := c.Calendar.UpdateEvent(ctx, "AT", "", EventUpdate{CalendarID: "x"})
-			return err
+			return c.Calendar.UpdateEvent(ctx, "AT", "", EventChanges{}, &EventUpdateOptions{CalendarID: "x"})
 		},
-		"update event without data":    func() error { _, err := c.Calendar.UpdateEvent(ctx, "AT", "e", EventUpdate{}); return err },
-		"delete event without ID":      func() error { return c.Calendar.DeleteEvent(ctx, "AT", "", "") },
-		"guest update without ID":      func() error { return c.Calendar.UpdateGuestEvent(ctx, "AT", "", "c", nil) },
-		"guest update without data":    func() error { return c.Calendar.UpdateGuestEvent(ctx, "AT", "e", "", nil) },
-		"public events without range":  func() error { _, err := c.Calendar.PublicEvents(ctx, "", now, time.Time{}, 0, 0); return err },
+		"update event without data": func() error { return c.Calendar.UpdateEvent(ctx, "AT", "e", EventChanges{}, nil) },
+		"delete event without ID":   func() error { return c.Calendar.DeleteEvent(ctx, "AT", "", nil) },
+		"guest update without ID": func() error {
+			return c.Calendar.UpdateGuestEvent(ctx, "AT", "", GuestEventChanges{}, &GuestEventUpdateOptions{CalendarID: "c"})
+		},
+		"guest update without data":    func() error { return c.Calendar.UpdateGuestEvent(ctx, "AT", "e", GuestEventChanges{}, nil) },
+		"public events without range":  func() error { _, err := c.Calendar.PublicEvents(ctx, PublicEventsQuery{From: now}); return err },
 		"public event without ID":      func() error { _, err := c.Calendar.PublicEvent(ctx, "", ""); return err },
 		"update public without ID":     func() error { return c.Calendar.UpdatePublicEvent(ctx, "", "", PublicEventChanges{}) },
 		"delete public without ID":     func() error { return c.Calendar.DeletePublicEvent(ctx, "", "") },
@@ -535,5 +538,17 @@ func TestJSONForm(t *testing.T) {
 	}
 	if got := queryParam("://bad", "k"); got != "" {
 		t.Errorf("queryParam(bad URL) = %q", got)
+	}
+}
+
+func TestEventTime_JSON(t *testing.T) {
+	t.Parallel()
+	b, err := json.Marshal(EventTime{})
+	if err != nil || string(b) != `{}` {
+		t.Errorf("zero EventTime = %s, %v", b, err)
+	}
+	var et EventTime
+	if err := json.Unmarshal([]byte(`{"start_at":"bad"}`), &et); err == nil {
+		t.Error("bad start_at: want error")
 	}
 }

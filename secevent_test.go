@@ -13,7 +13,7 @@ func (f *oidcFixture) setClaims() map[string]any {
 		"iss": Issuer, "aud": "rest", "sub": "1234", "app_id": "5678", "jti": "jti-1",
 		"txn": "txn-1", "toe": f.now.Unix() - 5, "iat": f.now.Unix(),
 		"events": map[string]any{
-			EventUserUnlinked: map[string]any{
+			string(SecurityEventUserUnlinked): map[string]any{
 				"subject": map[string]any{"subject_type": "iss-sub", "iss": Issuer, "sub": "1234"},
 				"reason":  "UNLINK_FROM_APPS",
 			},
@@ -29,10 +29,10 @@ func TestAuthService_VerifySecurityEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ev.Subject != "1234" || ev.AppID != "5678" || ev.JTI != "jti-1" || ev.TransactionID != "txn-1" || ev.TimeOfEvent != f.now.Unix()-5 {
+	if ev.Subject != "1234" || ev.AppID != 5678 || ev.JTI != "jti-1" || ev.TransactionID != "txn-1" || ev.TimeOfEvent != f.now.Unix()-5 {
 		t.Errorf("event = %+v", ev)
 	}
-	d, ok := ev.Events[EventUserUnlinked]
+	d, ok := ev.Events[SecurityEventUserUnlinked]
 	if !ok || d.Reason != "UNLINK_FROM_APPS" || d.Subject == nil || d.Subject.Sub != "1234" || d.Subject.SubjectType != "iss-sub" {
 		t.Errorf("detail = %+v", d)
 	}
@@ -41,11 +41,11 @@ func TestAuthService_VerifySecurityEvent(t *testing.T) {
 	delete(claims, "txn")
 	claims["txm"] = "txm-1"
 	claims["events"] = map[string]any{
-		EventIdentifierChanged: map[string]any{
+		string(SecurityEventIdentifierChanged): map[string]any{
 			"subject":   map[string]any{"subject_type": "account_email", "account_email": "old@kakao.com"},
 			"new_value": "new@kakao.com",
 		},
-		EventBusinessTokenIssued: map[string]any{
+		string(SecurityEventBusinessTokenIssued): map[string]any{
 			"subject":       map[string]any{"subject_type": "oauth_token", "token_type": "business_access_token", "token_identifier_alg": "hash_sha256", "token": "abc"},
 			"token_subject": map[string]any{"subject_type": "iss-sub", "iss": "https://kauth.kakao.com/", "sub": "99"},
 			"token_id":      "tid", "token_class": "business",
@@ -58,10 +58,22 @@ func TestAuthService_VerifySecurityEvent(t *testing.T) {
 	if ev.TransactionID != "txm-1" {
 		t.Errorf("txm fallback: %q", ev.TransactionID)
 	}
-	if d := ev.Events[EventIdentifierChanged]; d.NewValue != "new@kakao.com" || d.Subject.AccountEmail != "old@kakao.com" {
+	claims["app_id"] = 5678 // numeric app_id
+	if ev, err := f.c.Auth.VerifySecurityEvent(t.Context(), signJWT(t, testKeys()[0], setHeader, claims)); err != nil || ev.AppID != 5678 {
+		t.Errorf("numeric app_id: %v, %+v", err, ev)
+	}
+	claims["app_id"] = "abc"
+	if _, err := f.c.Auth.VerifySecurityEvent(t.Context(), signJWT(t, testKeys()[0], setHeader, claims)); err == nil {
+		t.Error("bad app_id: want error")
+	}
+	claims["app_id"] = "5678"
+	if ev.TransactionID != "txm-1" {
+		t.Errorf("txm fallback: %q", ev.TransactionID)
+	}
+	if d := ev.Events[SecurityEventIdentifierChanged]; d.NewValue != "new@kakao.com" || d.Subject.AccountEmail != "old@kakao.com" {
 		t.Errorf("identifier changed = %+v", d)
 	}
-	if d := ev.Events[EventBusinessTokenIssued]; d.TokenClass != "business" || d.TokenSubject.Sub != "99" || d.Subject.Token != "abc" {
+	if d := ev.Events[SecurityEventBusinessTokenIssued]; d.TokenClass != "business" || d.TokenSubject.Sub != "99" || d.Subject.Token != "abc" {
 		t.Errorf("business token issued = %+v", d)
 	}
 }

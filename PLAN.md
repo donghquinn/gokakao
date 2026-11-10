@@ -79,7 +79,7 @@ A Go client library for the server-side Kakao Developers REST APIs
 | **4. Calendar + Push** ✅ | Talk Calendar: user calendars and events, public events, follow, subscribable calendars, holidays. Push v2: register, tokens, deregister, send, plus typed `for_apns` / `for_fcm` payloads. | v0.4.0 |
 | **5. Webhooks** ✅ | `webhook.UnlinkHandler`, `ChannelHandler`, `ShareHandler` (all verify `Authorization: KakaoAK <primary key>`). An SSF handler that verifies the SET JWT against `/.well-known/ssf-configuration` JWKS, parses typed events (RISC, CAEP, OAuth, KAKAO), and returns 202 on success and 400 on failure. Handlers answer within 3 s by handing work off. | v0.5.0 |
 | **6. Business Auth** ✅ | Business authorize URL, token, token info, revoke. Shared by the ads packages. | v0.6.0 |
-| **7. Hardening → v1.0** | Live integration suite against a real test app, gated by `KAKAO_*` environment variables. Godoc examples for every service. API review and freeze. `apidiff` in CI. | **v1.0.0** |
+| **7. Hardening → v1.0** (in progress: API review, CI gates, examples done; live run pending) | Live integration suite against a real test app, gated by `KAKAO_*` environment variables. Godoc examples for every service. API review and freeze. `apidiff` in CI. | **v1.0.0** |
 | **8. Ads** | `moment/` and `keywordad/`, built group by group, honoring each endpoint's rate limit (a per-endpoint limiter). Possibly separate Go modules so their changes don't force major version bumps on the core. | v1.x (or `moment/v0.x`) |
 
 ## 4. Testing strategy

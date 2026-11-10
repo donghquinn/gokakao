@@ -216,12 +216,23 @@ type TokenSource struct {
 	tok *Token
 }
 
-// TokenSource returns a TokenSource that starts from tok. onRefresh, if
-// non-nil, is called with every refreshed token so it can be persisted; it
-// runs while the TokenSource is locked and must not call back into it.
-func (s *AuthService) TokenSource(tok *Token, onRefresh func(*Token)) *TokenSource {
+// TokenSourceOptions are the optional parameters of
+// [AuthService.TokenSource].
+type TokenSourceOptions struct {
+	// OnRefresh is called with every refreshed token so it can be
+	// persisted. It runs while the TokenSource is locked and must not call
+	// back into it.
+	OnRefresh func(*Token)
+}
+
+// TokenSource returns a TokenSource that starts from tok.
+func (s *AuthService) TokenSource(tok *Token, opts *TokenSourceOptions) *TokenSource {
 	t := *tok
-	return &TokenSource{auth: s, onRefresh: onRefresh, tok: &t}
+	ts := &TokenSource{auth: s, tok: &t}
+	if opts != nil {
+		ts.onRefresh = opts.OnRefresh
+	}
+	return ts
 }
 
 // Token returns a valid token, refreshing it first if it expires within a

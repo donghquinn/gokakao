@@ -9,8 +9,8 @@ import (
 )
 
 // Time is a timestamp in a Kakao response. It decodes ISO 8601 / RFC 3339
-// values with or without fractional seconds; an empty string or null
-// decodes to the zero time.
+// strings with or without fractional seconds and JSON numbers as Unix
+// seconds; an empty string or null decodes to the zero time.
 type Time struct {
 	time.Time
 }
@@ -20,6 +20,14 @@ func (t *Time) UnmarshalJSON(b []byte) error {
 	var s string
 	if bytes.Equal(b, []byte("null")) {
 		t.Time = time.Time{}
+		return nil
+	}
+	if len(b) > 0 && b[0] != '"' {
+		sec, err := strconv.ParseInt(string(b), 10, 64)
+		if err != nil {
+			return fmt.Errorf("kakao: time: %w", err)
+		}
+		t.Time = time.Unix(sec, 0)
 		return nil
 	}
 	if err := json.Unmarshal(b, &s); err != nil {

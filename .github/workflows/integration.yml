@@ -1,0 +1,36 @@
+name: Integration
+
+# Runs the live tests against the real Kakao API with a dedicated test app.
+# Set these repository secrets (tests needing a missing one are skipped):
+#   KAKAO_REST_KEY      REST API key of the test app
+#   KAKAO_ADMIN_KEY     admin key, for admin-only read APIs
+#   KAKAO_ACCESS_TOKEN  a user access token, for user read APIs
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # 03:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Live tests
+        env:
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+          KAKAO_ADMIN_KEY: ${{ secrets.KAKAO_ADMIN_KEY }}
+          KAKAO_ACCESS_TOKEN: ${{ secrets.KAKAO_ACCESS_TOKEN }}
+        run: go test -tags=integration -run Integration -count=1 -v ./...

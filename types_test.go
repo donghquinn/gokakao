@@ -71,6 +71,33 @@ func TestFloat_UnmarshalJSON(t *testing.T) {
 	}
 }
 
+func TestInt64_JSON(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		in      string
+		want    Int64
+		wantErr bool
+	}{
+		{`1111111111`, 1111111111, false},
+		{`"1111111111"`, 1111111111, false},
+		{`""`, 0, false},
+		{`null`, 0, false},
+		{`1.5`, 0, true},
+		{`"x"`, 0, true},
+		{`"`, 0, true},
+	}
+	for _, tt := range tests {
+		var got Int64
+		err := json.Unmarshal([]byte(tt.in), &got)
+		if (err != nil) != tt.wantErr || got != tt.want {
+			t.Errorf("%s: got %d, %v", tt.in, got, err)
+		}
+	}
+	if b, _ := json.Marshal(Int64(7)); string(b) != "7" {
+		t.Errorf("Marshal = %s", b)
+	}
+}
+
 func TestYesNo_JSON(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -131,5 +158,7 @@ func FuzzLenientTypes(f *testing.F) {
 		_ = fl.UnmarshalJSON(b)
 		var yn YesNo
 		_ = yn.UnmarshalJSON(b)
+		var n Int64
+		_ = n.UnmarshalJSON(b)
 	})
 }

@@ -16,6 +16,8 @@ func newTestClient(t *testing.T, opts ...Option) (*Client, *kakaotest.Server) {
 		WithBaseURL(HostAuth, srv.URL),
 		WithBaseURL(HostAPI, srv.URL),
 		WithBaseURL(HostDAPI, srv.URL),
+		WithBaseURL(HostMoment, srv.URL),
+		WithBaseURL(HostKeywordAd, srv.URL),
 	}
 	c, err := NewClient(append(base, opts...)...)
 	if err != nil {
@@ -80,7 +82,7 @@ func TestNewClient_invalidOptions(t *testing.T) {
 
 func TestHost_String(t *testing.T) {
 	t.Parallel()
-	for h, want := range map[Host]string{HostAuth: "kauth", HostAPI: "kapi", HostDAPI: "dapi", 0: "unknown"} {
+	for h, want := range map[Host]string{HostAuth: "kauth", HostAPI: "kapi", HostDAPI: "dapi", HostMoment: "moment", HostKeywordAd: "keywordad", 0: "unknown"} {
 		if got := h.String(); got != want {
 			t.Errorf("Host(%d).String() = %q, want %q", h, got, want)
 		}

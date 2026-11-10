@@ -75,6 +75,36 @@ func (f *Float) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Int64 is an integer in a Kakao response that may be encoded either as a
+// JSON number or as a string, such as IDs in the advertising APIs. An empty
+// string or null decodes to 0. It encodes as a JSON number.
+type Int64 int64
+
+// UnmarshalJSON implements [json.Unmarshaler].
+func (n *Int64) UnmarshalJSON(b []byte) error {
+	if bytes.Equal(b, []byte("null")) {
+		*n = 0
+		return nil
+	}
+	if len(b) > 0 && b[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return fmt.Errorf("kakao: integer: %w", err)
+		}
+		if s == "" {
+			*n = 0
+			return nil
+		}
+		b = []byte(s)
+	}
+	v, err := strconv.ParseInt(string(b), 10, 64)
+	if err != nil {
+		return fmt.Errorf("kakao: integer: %w", err)
+	}
+	*n = Int64(v)
+	return nil
+}
+
 // YesNo is a "Y"/"N" flag in a Kakao response. "Y" decodes to true and
 // anything else to false.
 type YesNo bool

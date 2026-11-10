@@ -35,14 +35,21 @@ const (
 	HostAPI
 	// HostDAPI serves Daum Search and Kakao Map, https://dapi.kakao.com.
 	HostDAPI
+	// HostMoment is the Kakao Moment API, https://apis.moment.kakao.com.
+	HostMoment
+	// HostKeywordAd is the Kakao Keyword Ad API,
+	// https://api.keywordad.kakao.com.
+	HostKeywordAd
 
 	numHosts
 )
 
 var defaultBaseURLs = [numHosts]string{
-	HostAuth: "https://kauth.kakao.com",
-	HostAPI:  "https://kapi.kakao.com",
-	HostDAPI: "https://dapi.kakao.com",
+	HostAuth:      "https://kauth.kakao.com",
+	HostAPI:       "https://kapi.kakao.com",
+	HostDAPI:      "https://dapi.kakao.com",
+	HostMoment:    "https://apis.moment.kakao.com",
+	HostKeywordAd: "https://api.keywordad.kakao.com",
 }
 
 func (h Host) String() string {
@@ -53,6 +60,10 @@ func (h Host) String() string {
 		return "kapi"
 	case HostDAPI:
 		return "dapi"
+	case HostMoment:
+		return "moment"
+	case HostKeywordAd:
+		return "keywordad"
 	default:
 		return "unknown"
 	}

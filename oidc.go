@@ -62,35 +62,16 @@ type IDTokenClaims struct {
 //
 // Docs: https://developers.kakao.com/docs/ko/kakaologin/rest-api
 func (s *AuthService) VerifyIDToken(ctx context.Context, idToken, nonce string) (*IDTokenClaims, error) {
-	parts := strings.Split(idToken, ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("%w: not a JWS compact serialization", ErrInvalidIDToken)
-	}
-	var header struct {
-		Alg string `json:"alg"`
-		Kid string `json:"kid"`
-	}
-	if err := decodeSegment(parts[0], &header); err != nil {
-		return nil, fmt.Errorf("%w: header: %w", ErrInvalidIDToken, err)
-	}
-	if header.Alg != "RS256" {
-		return nil, fmt.Errorf("%w: unsupported alg %q", ErrInvalidIDToken, header.Alg)
-	}
-	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	payload, err := s.verifyJWS(ctx, idToken, "")
 	if err != nil {
-		return nil, fmt.Errorf("%w: signature: %w", ErrInvalidIDToken, err)
-	}
-	key, err := s.jwks.key(ctx, s.c, header.Kid)
-	if err != nil {
+		var je *jwsError
+		if errors.As(err, &je) {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidIDToken, je.msg)
+		}
 		return nil, err
 	}
-	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
-	if err := rsa.VerifyPKCS1v15(key, crypto.SHA256, digest[:], sig); err != nil {
-		return nil, fmt.Errorf("%w: bad signature", ErrInvalidIDToken)
-	}
-
 	var claims IDTokenClaims
-	if err := decodeSegment(parts[1], &claims); err != nil {
+	if err := json.Unmarshal(payload, &claims); err != nil {
 		return nil, fmt.Errorf("%w: payload: %w", ErrInvalidIDToken, err)
 	}
 	now := s.c.now()
@@ -107,6 +88,56 @@ func (s *AuthService) VerifyIDToken(ctx context.Context, idToken, nonce string) 
 		return nil, fmt.Errorf("%w: nonce mismatch", ErrInvalidIDToken)
 	}
 	return &claims, nil
+}
+
+// jwsError is a JWS validation failure. code is an RFC 8935 error code.
+type jwsError struct {
+	code string // "invalid_request" or "invalid_key"
+	msg  string
+}
+
+func (e *jwsError) Error() string { return "kakao: " + e.msg }
+
+// verifyJWS checks the compact JWS token against Kakao's signing keys and
+// returns its decoded payload. If wantTyp is non-empty, the header typ
+// must match it. Validation failures are *jwsError; other errors mean the
+// keys could not be fetched.
+func (s *AuthService) verifyJWS(ctx context.Context, token, wantTyp string) ([]byte, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, &jwsError{"invalid_request", "not a JWS compact serialization"}
+	}
+	var header struct {
+		Alg string `json:"alg"`
+		Kid string `json:"kid"`
+		Typ string `json:"typ"`
+	}
+	if err := decodeSegment(parts[0], &header); err != nil {
+		return nil, &jwsError{"invalid_request", "header: " + err.Error()}
+	}
+	if header.Alg != "RS256" {
+		return nil, &jwsError{"invalid_request", fmt.Sprintf("unsupported alg %q", header.Alg)}
+	}
+	if wantTyp != "" && header.Typ != wantTyp {
+		return nil, &jwsError{"invalid_request", fmt.Sprintf("typ %q, want %q", header.Typ, wantTyp)}
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, &jwsError{"invalid_request", "payload: " + err.Error()}
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return nil, &jwsError{"invalid_request", "signature: " + err.Error()}
+	}
+	key, err := s.jwks.key(ctx, s.c, header.Kid)
+	if err != nil {
+		return nil, err
+	}
+	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
+	if err := rsa.VerifyPKCS1v15(key, crypto.SHA256, digest[:], sig); err != nil {
+		return nil, &jwsError{"invalid_key", "bad signature"}
+	}
+	return payload, nil
 }
 
 // IDTokenInfo asks Kakao to decode an ID token. Kakao provides it for
@@ -134,7 +165,7 @@ func decodeSegment(seg string, v any) error {
 	return json.Unmarshal(b, v)
 }
 
-// jwksCache holds Kakao's ID token signing keys.
+// jwksCache holds Kakao's ID token and security event signing keys.
 type jwksCache struct {
 	mu        sync.Mutex
 	keys      map[string]*rsa.PublicKey
@@ -159,7 +190,7 @@ func (j *jwksCache) key(ctx context.Context, c *Client, kid string) (*rsa.Public
 	if k, ok := j.keys[kid]; ok {
 		return k, nil
 	}
-	return nil, fmt.Errorf("%w: unknown key ID %q", ErrInvalidIDToken, kid)
+	return nil, &jwsError{"invalid_key", fmt.Sprintf("unknown key ID %q", kid)}
 }
 
 func fetchJWKS(ctx context.Context, c *Client) (map[string]*rsa.PublicKey, error) {

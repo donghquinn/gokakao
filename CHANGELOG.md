@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `webhook` package: handlers and parsers for the unlink, account status
+  (Security Event Token), KakaoTalk Channel, KakaoTalk Share and push failure
+  webhooks, replying with the status codes Kakao requires.
+- `AuthService.VerifySecurityEvent` and `SecurityEvent` with constants for all
+  OAUTH, RISC, CAEP and KAKAO event types.
+- `examples/webhook`, a webhook receiver.
 - Talk Calendar: `Client.Calendar` with user calendars, events (with
   `AllEvents` paging and `Clear` for removing fields), channel public events,
   subscription calendars, holidays and tasks.

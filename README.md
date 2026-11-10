@@ -131,6 +131,33 @@ err = c.Push.Send(ctx, []int64{userID}, kakao.PushMessage{
 | `Calendar` (tasks) | `CreateTask`, `Tasks`, `Task`, `TaskRecords`, `UpdateTask`, `CompleteTask`, `DeleteTask` |
 | `Push` (admin) | `Register`, `Tokens`, `Deregister`, `Send` |
 
+### Webhooks
+
+```go
+import "github.com/donghquinn/gokakao/webhook"
+
+mux.Handle("/kakao/unlink", webhook.UnlinkHandler(primaryAdminKey, func(r *http.Request, e *webhook.UnlinkEvent) {
+	queue.Enqueue(deleteUser(e.UserID)) // reply within 3 s; do slow work elsewhere
+}))
+// Verifies the Security Event Token (RS256, iss, aud) and replies 202 / 400 / 503 as Kakao expects.
+mux.Handle("POST /kakao/events", webhook.SecurityEventHandler(c.Auth, func(r *http.Request, e *kakao.SecurityEvent) {
+	if d, ok := e.Events[kakao.EventSessionsRevoked]; ok { ... }
+}))
+mux.Handle("POST /kakao/channel", webhook.ChannelHandler(primaryAdminKey, onChannelEvent))
+mux.Handle("/kakao/share", webhook.ShareHandler(primaryAdminKey, onShare))
+mux.Handle("POST /kakao/push-failed/{secret}", webhook.PushFailureHandler(onPushFailure))
+```
+
+| Webhook | Handler / parser | Authentication |
+|---|---|---|
+| 연결 해제 (unlink) | `UnlinkHandler` / `ParseUnlink` | primary admin key header |
+| 계정 상태 변경 (SSF/RISC/CAEP) | `SecurityEventHandler` / `Client.Auth.VerifySecurityEvent` | RS256 signature (JWKS) |
+| 카카오톡 채널 | `ChannelHandler` / `ParseChannel` | primary admin key header |
+| 카카오톡 공유 | `ShareHandler` / `ParseShare` | primary admin key header |
+| 푸시 전송 실패 | `PushFailureHandler` / `ParsePushFailure` | none; use a secret in `return_url` |
+
+See [examples/webhook](examples/webhook/main.go).
+
 ### Daum Search
 
 ```go
@@ -188,7 +215,7 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 | Kakao Login / OpenID Connect | ✅ |
 | KakaoTalk Message, Social, Channel | ✅ |
 | Talk Calendar (incl. tasks), Push | ✅ |
-| Webhooks | planned (v0.5) |
+| Webhooks | ✅ |
 | Business Auth | planned (v0.6) |
 | Kakao Moment, Keyword Ad | planned (after v1.0) |
 

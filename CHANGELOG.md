@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `template` package: Feed, List, Commerce, Location, Text and Calendar
+  message templates.
+- KakaoTalk Message and Social: `Client.Talk` with `SendToMe`,
+  `SendCustomToMe`, `SendScrapToMe`, `SendToFriends`, `SendCustomToFriends`,
+  `SendScrapToFriends`, `Profile`, `Friends`, `AllFriends` and `Profiles`.
+- KakaoTalk Channel: `Client.Channel` with `Relations`, `MultiRelations`,
+  `CreateUserFile`, `UserFiles`, `AddUsers` and `RemoveUsers`.
 - Kakao Login: `Client.Auth` with `AuthCodeURL` (incl. PKCE), `Exchange`,
   `Refresh`, `LogoutURL`, `VerifyIDToken` (RS256 + JWKS cache), `IDTokenInfo`
   and a refreshing `TokenSource`.

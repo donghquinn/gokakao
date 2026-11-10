@@ -67,15 +67,15 @@ func (s adminSubject) apply(r *request) error {
 	return nil
 }
 
-// do sends r on behalf of sub.
-func (s *UserService) do(ctx context.Context, sub Subject, r *request, out any) error {
+// doAs sends r on behalf of sub.
+func (c *Client) doAs(ctx context.Context, sub Subject, r *request, out any) error {
 	if sub == nil {
 		return errors.New("kakao: nil Subject")
 	}
 	if err := sub.apply(r); err != nil {
 		return err
 	}
-	return s.c.do(ctx, r, out)
+	return c.do(ctx, r, out)
 }
 
 // User is a Kakao user as returned by [UserService.Me] and
@@ -184,7 +184,7 @@ func (s *UserService) Me(ctx context.Context, sub Subject, opts *MeOptions) (*Us
 		}
 	}
 	var u User
-	if err := s.do(ctx, sub, &request{method: http.MethodGet, host: HostAPI, path: "/v2/user/me", query: q}, &u); err != nil {
+	if err := s.c.doAs(ctx, sub, &request{method: http.MethodGet, host: HostAPI, path: "/v2/user/me", query: q}, &u); err != nil {
 		return nil, err
 	}
 	return &u, nil
@@ -324,7 +324,7 @@ type idResponse struct {
 // Docs: https://developers.kakao.com/docs/ko/kakaologin/rest-api
 func (s *UserService) Logout(ctx context.Context, sub Subject) (int64, error) {
 	var res idResponse
-	err := s.do(ctx, sub, &request{method: http.MethodPost, host: HostAPI, path: "/v1/user/logout"}, &res)
+	err := s.c.doAs(ctx, sub, &request{method: http.MethodPost, host: HostAPI, path: "/v1/user/logout"}, &res)
 	return res.ID, err
 }
 
@@ -334,7 +334,7 @@ func (s *UserService) Logout(ctx context.Context, sub Subject) (int64, error) {
 // Docs: https://developers.kakao.com/docs/ko/kakaologin/rest-api
 func (s *UserService) Unlink(ctx context.Context, sub Subject) (int64, error) {
 	var res idResponse
-	err := s.do(ctx, sub, &request{method: http.MethodPost, host: HostAPI, path: "/v1/user/unlink"}, &res)
+	err := s.c.doAs(ctx, sub, &request{method: http.MethodPost, host: HostAPI, path: "/v1/user/unlink"}, &res)
 	return res.ID, err
 }
 
@@ -353,7 +353,7 @@ type AccessTokenInfo struct {
 // Docs: https://developers.kakao.com/docs/ko/kakaologin/rest-api
 func (s *UserService) TokenInfo(ctx context.Context, accessToken string) (*AccessTokenInfo, error) {
 	var info AccessTokenInfo
-	err := s.do(ctx, AccessToken(accessToken), &request{method: http.MethodGet, host: HostAPI, path: "/v1/user/access_token_info"}, &info)
+	err := s.c.doAs(ctx, AccessToken(accessToken), &request{method: http.MethodGet, host: HostAPI, path: "/v1/user/access_token_info"}, &info)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +387,7 @@ func (s *UserService) postProperties(ctx context.Context, accessToken, path stri
 		}
 	}
 	var res idResponse
-	err := s.do(ctx, AccessToken(accessToken), &request{method: http.MethodPost, host: HostAPI, path: path, form: form}, &res)
+	err := s.c.doAs(ctx, AccessToken(accessToken), &request{method: http.MethodPost, host: HostAPI, path: path, form: form}, &res)
 	return res.ID, err
 }
 
@@ -429,7 +429,7 @@ func (s *UserService) ShippingAddress(ctx context.Context, sub Subject, addressI
 		q.Set("address_id", strconv.FormatInt(addressID, 10))
 	}
 	var res ShippingAddressResult
-	if err := s.do(ctx, sub, &request{method: http.MethodGet, host: HostAPI, path: "/v2/user/shipping_address", query: q}, &res); err != nil {
+	if err := s.c.doAs(ctx, sub, &request{method: http.MethodGet, host: HostAPI, path: "/v2/user/shipping_address", query: q}, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -467,7 +467,7 @@ func (s *UserService) Scopes(ctx context.Context, sub Subject, scopeIDs ...strin
 		return nil, err
 	}
 	var res Scopes
-	if err := s.do(ctx, sub, &request{method: http.MethodGet, host: HostAPI, path: "/v2/user/scopes", query: q}, &res); err != nil {
+	if err := s.c.doAs(ctx, sub, &request{method: http.MethodGet, host: HostAPI, path: "/v2/user/scopes", query: q}, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -486,7 +486,7 @@ func (s *UserService) RevokeScopes(ctx context.Context, sub Subject, scopeIDs ..
 		return nil, err
 	}
 	var res Scopes
-	if err := s.do(ctx, sub, &request{method: http.MethodPost, host: HostAPI, path: "/v2/user/revoke/scopes", form: form}, &res); err != nil {
+	if err := s.c.doAs(ctx, sub, &request{method: http.MethodPost, host: HostAPI, path: "/v2/user/revoke/scopes", form: form}, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -542,7 +542,7 @@ func (s *UserService) ServiceTerms(ctx context.Context, sub Subject, opts *Servi
 		setString(q, "tags", strings.Join(opts.Tags, ","))
 	}
 	var res ServiceTerms
-	if err := s.do(ctx, sub, &request{method: http.MethodGet, host: HostAPI, path: "/v2/user/service_terms", query: q}, &res); err != nil {
+	if err := s.c.doAs(ctx, sub, &request{method: http.MethodGet, host: HostAPI, path: "/v2/user/service_terms", query: q}, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -582,7 +582,7 @@ func (s *UserService) changeServiceTerms(ctx context.Context, sub Subject, path 
 	}
 	form := url.Values{"tags": {strings.Join(tags, ",")}}
 	var res ServiceTermsChange
-	if err := s.do(ctx, sub, &request{method: http.MethodPost, host: HostAPI, path: path, form: form}, &res); err != nil {
+	if err := s.c.doAs(ctx, sub, &request{method: http.MethodPost, host: HostAPI, path: path, form: form}, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -611,7 +611,7 @@ type OIDCUserInfo struct {
 // Docs: https://developers.kakao.com/docs/ko/kakaologin/rest-api
 func (s *UserService) OIDCUserInfo(ctx context.Context, accessToken string) (*OIDCUserInfo, error) {
 	var info OIDCUserInfo
-	err := s.do(ctx, AccessToken(accessToken), &request{method: http.MethodGet, host: HostAPI, path: "/v1/oidc/userinfo"}, &info)
+	err := s.c.doAs(ctx, AccessToken(accessToken), &request{method: http.MethodGet, host: HostAPI, path: "/v1/oidc/userinfo"}, &info)
 	if err != nil {
 		return nil, err
 	}

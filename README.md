@@ -68,6 +68,39 @@ See [examples/login](examples/login/main.go) for a complete server.
 | `User.ServiceTerms`, `User.RevokeServiceTerms`, `User.AgreeServiceTerms` | 서비스 약관 (카카오싱크) |
 | `User.OIDCUserInfo` | OIDC 사용자 정보 |
 
+### KakaoTalk Message, Social and Channel
+
+```go
+import "github.com/donghquinn/gokakao/template"
+
+msg := template.Feed{
+	Content: template.Content{
+		Title:    "오늘의 디저트",
+		ImageURL: "https://example.com/cake.jpg",
+		Link:     template.Link{WebURL: "https://example.com", MobileWebURL: "https://m.example.com"},
+	},
+	Buttons: []template.Button{{Title: "보러 가기", Link: template.Link{WebURL: "https://example.com"}}},
+}
+err := c.Talk.SendToMe(ctx, accessToken, msg)
+
+// Message up to 5 friends; partial failures come back in res.FailureInfo.
+for f, err := range c.Talk.AllFriends(ctx, accessToken, nil) { ... }
+res, err := c.Talk.SendToFriends(ctx, accessToken, []string{friend.UUID}, msg)
+
+// Was the channel added? As the user, or as admin for any user.
+rel, err := c.Channel.Relations(ctx, kakao.AsAdmin(userID), "_ZeUTxl")
+```
+
+| Method | Kakao API |
+|---|---|
+| `Talk.SendToMe`, `SendCustomToMe`, `SendScrapToMe` | 나에게 보내기 (기본 / 사용자 정의 / 스크랩) |
+| `Talk.SendToFriends`, `SendCustomToFriends`, `SendScrapToFriends` | 친구에게 보내기 |
+| `Talk.Profile`, `Talk.Friends`, `Talk.AllFriends`, `Talk.Profiles` | 카카오톡 프로필, 친구 목록, 여러 사용자 프로필 |
+| `Channel.Relations`, `Channel.MultiRelations` | 채널 관계 조회 |
+| `Channel.CreateUserFile`, `UserFiles`, `AddUsers`, `RemoveUsers` | 고객 관리 (고객파일) |
+
+Templates: `template.Feed`, `List`, `Commerce`, `Location`, `Text`, `Calendar`.
+
 ### Daum Search
 
 ```go
@@ -123,7 +156,7 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 | Daum Search | ✅ |
 | Kakao Map (local search, coordinates, routing, static map) | ✅ |
 | Kakao Login / OpenID Connect | ✅ |
-| KakaoTalk Message, Social, Channel | planned (v0.3) |
+| KakaoTalk Message, Social, Channel | ✅ |
 | Talk Calendar, Push | planned (v0.4) |
 | Webhooks | planned (v0.5) |
 | Business Auth | planned (v0.6) |

@@ -8,9 +8,10 @@ import (
 	"time"
 )
 
-// Time is a timestamp in a Kakao response. It decodes ISO 8601 / RFC 3339
-// strings with or without fractional seconds and JSON numbers as Unix
-// seconds; an empty string or null decodes to the zero time.
+// Time is a timestamp in a Kakao response. It decodes RFC 3339 strings
+// with or without fractional seconds, ISO 8601 strings with a "+0000" style
+// offset, local times without an offset (read as KST), and JSON numbers as
+// Unix seconds; an empty string or null decodes to the zero time.
 type Time struct {
 	time.Time
 }
@@ -37,12 +38,34 @@ func (t *Time) UnmarshalJSON(b []byte) error {
 		t.Time = time.Time{}
 		return nil
 	}
-	v, err := time.Parse(time.RFC3339, s)
+	v, err := parseTime(s)
 	if err != nil {
 		return fmt.Errorf("kakao: time: %w", err)
 	}
 	t.Time = v
 	return nil
+}
+
+// kst is Korea Standard Time, assumed for timestamps without an offset.
+var kst = time.FixedZone("KST", 9*60*60)
+
+// parseTime parses the timestamp formats Kakao APIs use: RFC 3339, ISO
+// 8601 with a "+0000" style offset, and local times without an offset,
+// which are read as KST.
+func parseTime(s string) (time.Time, error) {
+	v, err := time.Parse(time.RFC3339, s)
+	if err == nil {
+		return v, nil
+	}
+	if v, err2 := time.Parse("2006-01-02T15:04:05.999999999-0700", s); err2 == nil {
+		return v, nil
+	}
+	for _, layout := range []string{"2006-01-02T15:04:05.999999999", "2006-01-02 15:04:05"} {
+		if v, err2 := time.ParseInLocation(layout, s, kst); err2 == nil {
+			return v, nil
+		}
+	}
+	return time.Time{}, err
 }
 
 // Float is a number in a Kakao response that may be encoded either as a

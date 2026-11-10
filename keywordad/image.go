@@ -19,8 +19,8 @@ type Image struct {
 	Width    int    `json:"width"`
 	Height   int    `json:"height"`
 	// Size is the file size in bytes.
-	Size         int64    `json:"size"`
-	LastUsedDate DateTime `json:"lastUsedDate"`
+	Size         int64      `json:"size"`
+	LastUsedDate kakao.Time `json:"lastUsedDate"`
 }
 
 // ImagePage is a page of images.

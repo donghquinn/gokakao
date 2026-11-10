@@ -1,8 +1,9 @@
 name: API compatibility
 
-# Fails a pull request that breaks the exported API, unless it carries the
-# "breaking-change" label. After v1.0.0, breaking changes need a new major
-# version instead.
+# Fails a pull request that breaks the exported API of the core module,
+# unless it carries the "breaking-change" label. After v1.0.0, breaking
+# changes need a new major version instead. The keywordad and moment modules
+# stay on v0.x and are not checked.
 
 on:
   pull_request:

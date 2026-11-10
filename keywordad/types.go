@@ -1,6 +1,12 @@
 package keywordad
 
-import kakao "github.com/donghquinn/gokakao"
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+
+	kakao "github.com/donghquinn/gokakao"
+)
 
 // Shared types from the Keyword Ad reference (타입 정보).
 //
@@ -116,6 +122,32 @@ const (
 	MetricsPixelSDKConversion MetricsGroup = "PIXEL_SDK_CONVERSION"
 	MetricsKakaoFriend        MetricsGroup = "KAKAO_FRIEND" // talk channel search ads only
 )
+
+// ImageID identifies an uploaded image. It is sent as a string and
+// decoded from either a JSON string or number, as the API returns both.
+type ImageID string
+
+// UnmarshalJSON implements [json.Unmarshaler].
+func (id *ImageID) UnmarshalJSON(b []byte) error {
+	var n kakao.Int64
+	if len(b) > 0 && b[0] != '"' {
+		if err := n.UnmarshalJSON(b); err != nil {
+			return err
+		}
+		if n != 0 {
+			*id = ImageID(strconv.FormatInt(int64(n), 10))
+		} else {
+			*id = ""
+		}
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("keywordad: image ID: %w", err)
+	}
+	*id = ImageID(s)
+	return nil
+}
 
 // Company is a business (사업자).
 type Company struct {
@@ -236,13 +268,13 @@ type Assets struct {
 
 // ThumbnailAsset is a thumbnail image.
 type ThumbnailAsset struct {
-	ImageID string `json:"imageId"`
-	Text    string `json:"text,omitempty"`
+	ImageID ImageID `json:"imageId"`
+	Text    string  `json:"text,omitempty"`
 }
 
 // MultiThumbnailAsset is one image of a multi-thumbnail.
 type MultiThumbnailAsset struct {
-	ImageID     string       `json:"imageId"`
+	ImageID     ImageID      `json:"imageId"`
 	Text        string       `json:"text,omitempty"`
 	LandingInfo *LandingInfo `json:"landingInfo,omitempty"`
 }

@@ -8,53 +8,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
+
+	kakao "github.com/donghquinn/gokakao"
 )
-
-// DateTime is a timestamp in a Keyword Ad response. Unlike [kakao.Time] it
-// also accepts the API's offsets without a colon
-// ("2022-02-20T00:00:00.000+0000") and timestamps without an offset
-// ("2021-02-20T12:00:00.702463"), which are read as Korea Standard Time.
-// An empty string or null decodes to the zero time.
-type DateTime struct {
-	time.Time
-}
-
-// kst is Korea Standard Time, which has no daylight saving time.
-var kst = time.FixedZone("KST", 9*60*60)
-
-// dateTimeLayouts are tried in order; the last has no offset.
-var dateTimeLayouts = []string{
-	time.RFC3339Nano,
-	"2006-01-02T15:04:05.999999999Z0700",
-	"2006-01-02T15:04:05.999999999",
-}
-
-// UnmarshalJSON implements [json.Unmarshaler].
-func (t *DateTime) UnmarshalJSON(b []byte) error {
-	t.Time = time.Time{}
-	if bytes.Equal(b, []byte("null")) {
-		return nil
-	}
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return fmt.Errorf("keywordad: time: %w", err)
-	}
-	if s == "" {
-		return nil
-	}
-	for i, layout := range dateTimeLayouts {
-		loc := time.UTC
-		if i == len(dateTimeLayouts)-1 {
-			loc = kst
-		}
-		if v, err := time.ParseInLocation(layout, s, loc); err == nil {
-			t.Time = v
-			return nil
-		}
-	}
-	return fmt.Errorf("keywordad: time: cannot parse %q", s)
-}
 
 // TrackerRole is the ad account's permission on a Pixel & SDK.
 type TrackerRole string
@@ -75,9 +31,9 @@ type TrackRight struct {
 	// events collected over the last 120 days (타겟 모수).
 	Population  int64       `json:"population"`
 	EventStatus EventStatus `json:"eventStatus"`
-	CreatedDate DateTime    `json:"createdDate"`
+	CreatedDate kakao.Time  `json:"createdDate"`
 	// LastEventDate is when an event was last received; zero if none.
-	LastEventDate DateTime    `json:"lastEventDate"`
+	LastEventDate kakao.Time  `json:"lastEventDate"`
 	Role          TrackerRole `json:"role"`
 }
 
@@ -100,8 +56,8 @@ type AvailableTracker struct {
 	// TrackID is the Pixel & SDK ID to pass to [PixelService.Link].
 	TrackID   string      `json:"trackId"`
 	Name      string      `json:"name"`
-	CreatedAt DateTime    `json:"createdAt"`
-	UpdatedAt DateTime    `json:"updatedAt"`
+	CreatedAt kakao.Time  `json:"createdAt"`
+	UpdatedAt kakao.Time  `json:"updatedAt"`
 	Role      TrackerRole `json:"role"`
 }
 

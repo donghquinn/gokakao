@@ -13,7 +13,7 @@ const imageJSON = `{"id": "8888888881", "lastUsedDate": "2021-02-20T12:00:00.702
 
 func assertImage(t *testing.T, img *Image) {
 	t.Helper()
-	want := time.Date(2021, 2, 20, 12, 0, 0, 702463000, kst)
+	want := time.Date(2021, 2, 20, 12, 0, 0, 702463000, time.FixedZone("KST", 9*60*60))
 	if img.ID != 8888888881 || img.URL != "https://www.kakao.com/image1.jpg" || img.FileName != "image1.jpg" ||
 		img.Width != 450 || img.Height != 450 || img.Size != 200000 || !img.LastUsedDate.Equal(want) {
 		t.Errorf("image = %+v", img)

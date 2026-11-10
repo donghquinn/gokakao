@@ -17,6 +17,9 @@ func TestTime_UnmarshalJSON(t *testing.T) {
 	}{
 		{"fractional seconds", `"2017-06-14T00:00:00.000+09:00"`, time.Date(2017, 6, 14, 0, 0, 0, 0, kst), false},
 		{"no fraction", `"2017-05-06T00:36:45+09:00"`, time.Date(2017, 5, 6, 0, 36, 45, 0, kst), false},
+		{"offset without colon", `"2022-02-20T00:00:00.000+0000"`, time.Date(2022, 2, 20, 0, 0, 0, 0, time.UTC), false},
+		{"no offset is KST", `"2021-02-20T12:00:00.702463"`, time.Date(2021, 2, 20, 12, 0, 0, 702463000, kst), false},
+		{"space separated is KST", `"2021-02-20 12:00:00"`, time.Date(2021, 2, 20, 12, 0, 0, 0, kst), false},
 		{"empty string", `""`, time.Time{}, false},
 		{"null", `null`, time.Time{}, false},
 		{"unix seconds", `1658214426`, time.Unix(1658214426, 0), false},

@@ -1,7 +1,6 @@
 package keywordad
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -102,31 +101,5 @@ func TestPixelService_writes(t *testing.T) {
 	}
 	if err := c.Pixels.Unlink(ctx, 1, ""); err == nil {
 		t.Error("Unlink: want error")
-	}
-}
-
-func TestDateTime_UnmarshalJSON(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		in   string
-		want time.Time
-	}{
-		{`"2022-02-20T00:00:00.000+0000"`, time.Date(2022, 2, 20, 0, 0, 0, 0, time.UTC)},
-		{`"2022-02-20T09:00:00+09:00"`, time.Date(2022, 2, 20, 0, 0, 0, 0, time.UTC)},
-		{`"2021-02-20T12:00:00.702463"`, time.Date(2021, 2, 20, 3, 0, 0, 702463000, time.UTC)},
-		{`""`, time.Time{}},
-		{`null`, time.Time{}},
-	}
-	for _, tt := range tests {
-		var d DateTime
-		if err := json.Unmarshal([]byte(tt.in), &d); err != nil || !d.Equal(tt.want) {
-			t.Errorf("%s = %v, %v; want %v", tt.in, d.Time, err, tt.want)
-		}
-	}
-	for _, in := range []string{`1`, `"2022-02-20"`} {
-		var d DateTime
-		if err := json.Unmarshal([]byte(in), &d); err == nil {
-			t.Errorf("%s: want error", in)
-		}
 	}
 }

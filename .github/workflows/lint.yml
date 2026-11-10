@@ -18,8 +18,19 @@ jobs:
         with:
           go-version: stable
 
-      - run: go vet ./...
+      - run: |
+          for m in . keywordad moment; do (cd "$m" && go vet ./...); done
 
       - uses: golangci/golangci-lint-action@v9
         with:
           version: latest
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          working-directory: keywordad
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          working-directory: moment

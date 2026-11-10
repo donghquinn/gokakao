@@ -35,7 +35,7 @@ func (s *AdAccountService) List(ctx context.Context, opts *AdAccountListOptions)
 		for _, cfg := range opts.Configs {
 			q.Add("config", string(cfg))
 		}
-		opts.PageOptions.query(q)
+		opts.query(q)
 	}
 	var page Page[AdAccount]
 	if err := s.c.do(ctx, call{method: http.MethodGet, path: "/v1/adAccounts/pages", query: q}, &page); err != nil {

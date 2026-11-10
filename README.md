@@ -158,6 +158,18 @@ mux.Handle("POST /kakao/push-failed/{secret}", webhook.PushFailureHandler(onPush
 
 See [examples/webhook](examples/webhook/main.go).
 
+### Business Auth
+
+```go
+url, err := c.Business.AuthCodeURL(redirectURI, []string{"moment_management", "moment_create"},
+	&kakao.BusinessAuthOptions{State: state, ResourceIDs: []string{"moment:*"}})
+tok, err := c.Business.Exchange(ctx, code, redirectURI) // no expiry; valid until revoked
+info, err := c.Business.TokenInfo(ctx, tok.AccessToken)
+_, err = c.Business.Revoke(ctx, tok.AccessToken)
+```
+
+Business user info (`/v1/business/userinfo`) is not supported; Kakao ends it on 2026-11-30.
+
 ### Daum Search
 
 ```go
@@ -216,7 +228,7 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 | KakaoTalk Message, Social, Channel | ✅ |
 | Talk Calendar (incl. tasks), Push | ✅ |
 | Webhooks | ✅ |
-| Business Auth | planned (v0.6) |
+| Business Auth | ✅ |
 | Kakao Moment, Keyword Ad | planned (after v1.0) |
 
 ## Testing

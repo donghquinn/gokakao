@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Business Auth: `Client.Business` with `AuthCodeURL`, `Exchange`,
+  `TokenInfo` and `Revoke`. Business user info is omitted because Kakao ends
+  it on 2026-11-30.
 - `webhook` package: handlers and parsers for the unlink, account status
   (Security Event Token), KakaoTalk Channel, KakaoTalk Share and push failure
   webhooks, replying with the status codes Kakao requires.

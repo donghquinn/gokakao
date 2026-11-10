@@ -82,6 +82,8 @@ type Client struct {
 	Calendar *CalendarService
 	// Push calls the Push Notification API.
 	Push *PushService
+	// Business implements Business Auth for the advertising APIs.
+	Business *BusinessService
 	// Search calls the Daum Search API.
 	Search *SearchService
 	// Map calls the Kakao Map REST API.
@@ -111,6 +113,7 @@ func NewClient(opts ...Option) (*Client, error) {
 	c.Channel = &ChannelService{c: c}
 	c.Calendar = &CalendarService{c: c}
 	c.Push = &PushService{c: c}
+	c.Business = &BusinessService{c: c}
 	c.Search = &SearchService{c: c}
 	c.Map = &MapService{c: c}
 	return c, nil

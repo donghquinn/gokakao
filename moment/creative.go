@@ -193,21 +193,11 @@ func (s *CreativeService) Delete(ctx context.Context, adAccountID, creativeID in
 	return s.c.do(ctx, call{method: http.MethodDelete, path: idPath("/v4/creatives/%d", creativeID), adAccountID: adAccountID}, nil)
 }
 
-// SystemStopReason is why a creative was stopped by the system
-// (시스템 정지 사유).
-type SystemStopReason struct {
-	ID               kakao.Int64  `json:"id"`
-	SystemConfig     SystemConfig `json:"systemConfig"`
-	Reason           string       `json:"reason"`
-	CreatedDate      kakao.Time   `json:"createdDate"`
-	LastModifiedDate kakao.Time   `json:"lastModifiedDate"`
-}
-
-// SystemStopReason returns the latest admin stop reason of a creative. Kakao
+// LatestSystemStopReason returns the latest admin stop reason of a creative. Kakao
 // only answers when the creative's SystemConfig is ADMIN_STOP.
 //
 // Docs: https://developers.kakao.com/docs/ko/kakaomoment/creatives
-func (s *CreativeService) SystemStopReason(ctx context.Context, adAccountID, creativeID int64) (*SystemStopReason, error) {
+func (s *CreativeService) LatestSystemStopReason(ctx context.Context, adAccountID, creativeID int64) (*SystemStopReason, error) {
 	var r SystemStopReason
 	if err := s.c.do(ctx, call{method: http.MethodGet, path: idPath("/v4/creatives/%d/systemConfigHistory", creativeID), adAccountID: adAccountID}, &r); err != nil {
 		return nil, err

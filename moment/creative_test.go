@@ -211,7 +211,7 @@ func TestCreativeService_SystemStopReason(t *testing.T) {
   "lastModifiedDate": "2021-01-01T00:00:00"
 }`)
 
-	r, err := c.Creatives.SystemStopReason(t.Context(), 5, 77)
+	r, err := c.Creatives.LatestSystemStopReason(t.Context(), 5, 77)
 	if err != nil {
 		t.Fatal(err)
 	}

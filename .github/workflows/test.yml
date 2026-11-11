@@ -17,9 +17,9 @@ jobs:
       matrix:
         go: ["1.26", "1.27", "stable"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
 
@@ -37,7 +37,7 @@ jobs:
 
       - name: Upload coverage
         if: matrix.go == 'stable'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.out,./keywordad/coverage.out,./moment/coverage.out
           fail_ci_if_error: false

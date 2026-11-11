@@ -20,6 +20,8 @@ linters:
     rules:
       - path: _test\.go
         linters: [gosec, noctx]
+      - path: internal/kakaotest/
+        linters: [gosec]
 
 formatters:
   enable:

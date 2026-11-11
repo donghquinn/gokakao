@@ -35,14 +35,21 @@ const (
 	HostAPI
 	// HostDAPI serves Daum Search and Kakao Map, https://dapi.kakao.com.
 	HostDAPI
+	// HostMoment is the Kakao Moment API, https://apis.moment.kakao.com.
+	HostMoment
+	// HostKeywordAd is the Kakao Keyword Ad API,
+	// https://api.keywordad.kakao.com.
+	HostKeywordAd
 
 	numHosts
 )
 
 var defaultBaseURLs = [numHosts]string{
-	HostAuth: "https://kauth.kakao.com",
-	HostAPI:  "https://kapi.kakao.com",
-	HostDAPI: "https://dapi.kakao.com",
+	HostAuth:      "https://kauth.kakao.com",
+	HostAPI:       "https://kapi.kakao.com",
+	HostDAPI:      "https://dapi.kakao.com",
+	HostMoment:    "https://apis.moment.kakao.com",
+	HostKeywordAd: "https://api.keywordad.kakao.com",
 }
 
 func (h Host) String() string {
@@ -53,6 +60,10 @@ func (h Host) String() string {
 		return "kapi"
 	case HostDAPI:
 		return "dapi"
+	case HostMoment:
+		return "moment"
+	case HostKeywordAd:
+		return "keywordad"
 	default:
 		return "unknown"
 	}
@@ -68,6 +79,26 @@ type Client struct {
 	userAgent    string
 	retry        *RetryPolicy
 	maxBodySize  int64
+	now          func() time.Time
+
+	// Auth implements the Kakao Login OAuth 2.0 and OpenID Connect flows.
+	Auth *AuthService
+	// User calls the Kakao Login user APIs.
+	User *UserService
+	// Talk calls the KakaoTalk Message and Social APIs.
+	Talk *TalkService
+	// Channel calls the KakaoTalk Channel APIs.
+	Channel *ChannelService
+	// Calendar calls the Talk Calendar API.
+	Calendar *CalendarService
+	// Push calls the Push Notification API.
+	Push *PushService
+	// Business implements Business Auth for the advertising APIs.
+	Business *BusinessService
+	// Search calls the Daum Search API.
+	Search *SearchService
+	// Map calls the Kakao Map REST API.
+	Map *MapService
 }
 
 // Option configures a [Client].
@@ -80,12 +111,22 @@ func NewClient(opts ...Option) (*Client, error) {
 		baseURLs:    defaultBaseURLs,
 		userAgent:   "gokakao/" + Version,
 		maxBodySize: 16 << 20,
+		now:         time.Now,
 	}
 	for _, opt := range opts {
 		if err := opt(c); err != nil {
 			return nil, err
 		}
 	}
+	c.Auth = &AuthService{c: c}
+	c.User = &UserService{c: c}
+	c.Talk = &TalkService{c: c}
+	c.Channel = &ChannelService{c: c}
+	c.Calendar = &CalendarService{c: c}
+	c.Push = &PushService{c: c}
+	c.Business = &BusinessService{c: c}
+	c.Search = &SearchService{c: c}
+	c.Map = &MapService{c: c}
 	return c, nil
 }
 

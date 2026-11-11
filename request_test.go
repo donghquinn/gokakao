@@ -1,9 +1,13 @@
 package kakao
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"sync/atomic"
@@ -103,7 +107,7 @@ func TestClient_do_bodies(t *testing.T) {
 	}
 
 	err := c.do(t.Context(), &request{method: http.MethodPost, host: HostAPI, path: "/x", form: form, json: body}, nil)
-	if err == nil || !strings.Contains(err.Error(), "both form and JSON") {
+	if err == nil || !strings.Contains(err.Error(), "more than one body") {
 		t.Errorf("both bodies: err = %v", err)
 	}
 	err = c.do(t.Context(), &request{method: http.MethodPost, host: HostAPI, path: "/x", json: make(chan int)}, nil)
@@ -264,5 +268,70 @@ func TestClient_do_transportError(t *testing.T) {
 	if err := c.do(t.Context(), &request{method: "BAD METHOD", host: HostAPI, path: "/x"}, nil); err == nil ||
 		!strings.Contains(err.Error(), "build request") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestClient_Do(t *testing.T) {
+	t.Parallel()
+	c, srv := newTestClient(t)
+	srv.HandleJSON("POST /openapi/v1/images", 200, `{"id":7}`)
+	srv.HandleJSON("GET /openapi/v1/adAccounts/pages", 400,
+		`{"code":-820,"msg":"KakaoKeywordAdException","extras":{"detailCode":103005,"detailMsg":"없는 비즈채널입니다."}}`)
+
+	var out struct {
+		ID int64 `json:"id"`
+	}
+	err := c.Do(t.Context(), &Request{
+		Method: http.MethodPost, Host: HostKeywordAd, Path: "/openapi/v1/images",
+		Header:      http.Header{"Adaccountid": {"111"}},
+		BearerToken: "BT",
+		Multipart: &Multipart{
+			Fields: url.Values{"name": {"배너"}},
+			Files:  []MultipartFile{{Field: "imageFile", Filename: "a.png", ContentType: "image/png", Data: []byte("\x89PNG")}, {Field: "doc", Filename: "b.bin", Header: textproto.MIMEHeader{"review-document-type": {"CREATIVE"}}, Data: []byte("x")}},
+		},
+	}, &out)
+	if err != nil || out.ID != 7 {
+		t.Fatalf("Do = %+v, %v", out, err)
+	}
+	req := srv.LastRequest()
+	if req.Header.Get("Authorization") != "Bearer BT" || req.Header.Get("adAccountId") != "111" {
+		t.Errorf("headers = %v", req.Header)
+	}
+	mt, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+	if err != nil || mt != "multipart/form-data" {
+		t.Fatalf("Content-Type = %q", req.Header.Get("Content-Type"))
+	}
+	mr := multipart.NewReader(bytes.NewReader(req.Body), params["boundary"])
+	form, err := mr.ReadForm(1 << 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if form.Value["name"][0] != "배너" || form.File["imageFile"][0].Filename != "a.png" ||
+		form.File["imageFile"][0].Header.Get("Content-Type") != "image/png" || form.File["doc"][0].Header.Get("Content-Type") != "application/octet-stream" ||
+		form.File["doc"][0].Header.Get("Review-Document-Type") != "CREATIVE" {
+		t.Errorf("form = %+v / %+v", form.Value, form.File)
+	}
+
+	err = c.Do(t.Context(), &Request{Method: http.MethodGet, Host: HostKeywordAd, Path: "/openapi/v1/adAccounts/pages"}, nil)
+	var e *Error
+	if !errors.As(err, &e) || e.Code != -820 || e.Extras == nil || e.Extras.DetailCode != 103005 {
+		t.Fatalf("err = %#v", err)
+	}
+	if want := "kakao: HTTP 400, code -820: KakaoKeywordAdException (detail 103005: 없는 비즈채널입니다.)"; e.Error() != want {
+		t.Errorf("Error() = %q", e.Error())
+	}
+	if srv.LastRequest().Header.Get("Authorization") != "" {
+		t.Error("no bearer token: Authorization must be empty")
+	}
+
+	if err := c.Do(t.Context(), nil, nil); err == nil {
+		t.Error("nil request: want error")
+	}
+	if err := c.Do(t.Context(), &Request{Host: Host(0)}, nil); err == nil {
+		t.Error("unknown host: want error")
+	}
+	err = c.Do(t.Context(), &Request{Method: http.MethodPost, Host: HostKeywordAd, Path: "/x", JSON: 1, Multipart: &Multipart{}}, nil)
+	if err == nil || !strings.Contains(err.Error(), "more than one body") {
+		t.Errorf("two bodies: err = %v", err)
 	}
 }

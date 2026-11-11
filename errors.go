@@ -28,6 +28,19 @@ type Error struct {
 	RequiredScopes []string `json:"required_scopes"`
 	// AllowedScopes lists the consent items available to the app.
 	AllowedScopes []string `json:"allowed_scopes"`
+	// Extras holds the detailed error of the Kakao Moment and Keyword Ad
+	// APIs.
+	Extras *ErrorExtras `json:"extras"`
+}
+
+// ErrorExtras is the detailed error of the advertising APIs.
+type ErrorExtras struct {
+	// DetailCode is the API-specific error, e.g. 21006 (ad account not
+	// found).
+	DetailCode int    `json:"detailCode"`
+	DetailMsg  string `json:"detailMsg"`
+	Path       string `json:"path"`
+	Timestamp  string `json:"timestamp"`
 }
 
 func (e *Error) Error() string {
@@ -41,6 +54,9 @@ func (e *Error) Error() string {
 	}
 	if e.Msg != "" {
 		fmt.Fprintf(&b, ": %s", e.Msg)
+	}
+	if e.Extras != nil && (e.Extras.DetailCode != 0 || e.Extras.DetailMsg != "") {
+		fmt.Fprintf(&b, " (detail %d: %s)", e.Extras.DetailCode, e.Extras.DetailMsg)
 	}
 	return b.String()
 }

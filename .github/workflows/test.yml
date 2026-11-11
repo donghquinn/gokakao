@@ -25,16 +25,20 @@ jobs:
 
       - name: Check go mod tidy
         run: |
-          go mod tidy
-          git diff --exit-code go.mod
+          for m in . keywordad moment; do (cd "$m" && go mod tidy); done
+          git diff --exit-code -- '**go.mod' '**go.sum'
 
       - name: Test
-        run: go test -race -shuffle=on -coverprofile=coverage.out ./...
+        run: |
+          go test -race -shuffle=on -coverprofile=coverage.out ./...
+          for m in keywordad moment; do
+            (cd "$m" && go test -race -shuffle=on -coverprofile=coverage.out ./...)
+          done
 
       - name: Upload coverage
         if: matrix.go == 'stable'
         uses: codecov/codecov-action@v5
         with:
-          files: ./coverage.out
+          files: ./coverage.out,./keywordad/coverage.out,./moment/coverage.out
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}

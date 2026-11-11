@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"time"
 )
@@ -36,8 +39,71 @@ type request struct {
 	query  url.Values
 	form   url.Values
 	json   any
+	multi  *Multipart
+	header http.Header
 	// idempotent marks a non-GET request as safe to retry.
 	idempotent bool
+}
+
+// Request is a raw API request for packages that build on [Client], such as
+// the Kakao Moment and Keyword Ad modules. Applications should use the
+// typed services instead.
+//
+// At most one of Form, JSON and Multipart may be set.
+type Request struct {
+	Method string
+	Host   Host
+	// Path is the URL path, e.g. "/openapi/v1/adAccounts/pages".
+	Path      string
+	Query     url.Values
+	Form      url.Values
+	JSON      any
+	Multipart *Multipart
+	// Header holds extra request headers, e.g. adAccountId.
+	Header http.Header
+	// BearerToken, if set, is sent as "Authorization: Bearer <token>".
+	BearerToken string
+	// Idempotent marks a non-GET request as safe to retry.
+	Idempotent bool
+}
+
+// Multipart is a multipart/form-data request body.
+type Multipart struct {
+	Fields url.Values
+	Files  []MultipartFile
+}
+
+// MultipartFile is a file part of a [Multipart] body.
+type MultipartFile struct {
+	// Field is the form field name, e.g. "imageFile".
+	Field    string
+	Filename string
+	// ContentType defaults to application/octet-stream.
+	ContentType string
+	// Header holds extra part headers, e.g. Review-Document-Type.
+	Header textproto.MIMEHeader
+	Data   []byte
+}
+
+// Do sends r with the client's transport, error handling and retry policy,
+// and decodes a successful JSON response into out, which may be nil.
+// Errors are [*Error] or [*OAuthError] like the typed services.
+func (c *Client) Do(ctx context.Context, r *Request, out any) error {
+	if r == nil {
+		return errors.New("kakao: nil Request")
+	}
+	if r.Host <= hostUnknown || r.Host >= numHosts {
+		return fmt.Errorf("kakao: unknown host %d", r.Host)
+	}
+	req := &request{
+		method: r.Method, host: r.Host, path: r.Path,
+		query: r.Query, form: r.Form, json: r.JSON, multi: r.Multipart,
+		header: r.Header, idempotent: r.Idempotent,
+	}
+	if r.BearerToken != "" {
+		req.auth, req.token = authBearer, r.BearerToken
+	}
+	return c.do(ctx, req, out)
 }
 
 // rawBody receives the undecoded response body, for non-JSON responses
@@ -95,6 +161,9 @@ func (c *Client) send(ctx context.Context, r *request, u, authz, contentType str
 	req, err := http.NewRequestWithContext(ctx, r.method, u, rd)
 	if err != nil {
 		return nil, fmt.Errorf("kakao: build request: %w", err)
+	}
+	for k, v := range r.header {
+		req.Header[k] = v
 	}
 	req.Header.Set("User-Agent", c.userAgent)
 	if authz != "" {
@@ -162,9 +231,17 @@ func (c *Client) authorization(r *request) (string, error) {
 }
 
 func encodeBody(r *request) (body []byte, contentType string, err error) {
+	n := 0
+	for _, set := range []bool{r.form != nil, r.json != nil, r.multi != nil} {
+		if set {
+			n++
+		}
+	}
 	switch {
-	case r.form != nil && r.json != nil:
-		return nil, "", fmt.Errorf("kakao: %s %s: both form and JSON body set", r.method, r.path)
+	case n > 1:
+		return nil, "", fmt.Errorf("kakao: %s %s: more than one body set", r.method, r.path)
+	case r.multi != nil:
+		return encodeMultipart(r.multi)
 	case r.form != nil:
 		return []byte(r.form.Encode()), contentTypeForm, nil
 	case r.json != nil:
@@ -176,4 +253,39 @@ func encodeBody(r *request) (body []byte, contentType string, err error) {
 	default:
 		return nil, "", nil
 	}
+}
+
+func encodeMultipart(m *Multipart) ([]byte, string, error) {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	for k, vs := range m.Fields {
+		for _, v := range vs {
+			if err := w.WriteField(k, v); err != nil {
+				return nil, "", fmt.Errorf("kakao: encode multipart: %w", err)
+			}
+		}
+	}
+	for _, f := range m.Files {
+		ct := f.ContentType
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+		h := make(textproto.MIMEHeader)
+		for k, v := range f.Header {
+			h[textproto.CanonicalMIMEHeaderKey(k)] = v
+		}
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, f.Field, f.Filename))
+		h.Set("Content-Type", ct)
+		part, err := w.CreatePart(h)
+		if err != nil {
+			return nil, "", fmt.Errorf("kakao: encode multipart: %w", err)
+		}
+		if _, err := part.Write(f.Data); err != nil {
+			return nil, "", fmt.Errorf("kakao: encode multipart: %w", err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		return nil, "", fmt.Errorf("kakao: encode multipart: %w", err)
+	}
+	return buf.Bytes(), w.FormDataContentType(), nil
 }

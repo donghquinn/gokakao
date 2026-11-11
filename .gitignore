@@ -42,3 +42,4 @@ tmp/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+go.work

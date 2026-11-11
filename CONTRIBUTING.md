@@ -11,6 +11,19 @@ make vet
 make fuzz   # fuzz the error parser for 30s
 ```
 
+### Modules
+
+The repository holds three modules: the core (`.`), `keywordad` and `moment`.
+The ad modules require a released core version. To change the core and an ad
+module together, use a local workspace (not committed):
+
+```sh
+go work init . ./keywordad ./moment
+```
+
+Release the core first, then bump the ad modules' `require` line and tag them
+as `keywordad/vX.Y.Z` and `moment/vX.Y.Z`.
+
 ## Guidelines
 
 - **Standard library only.** The root package must not gain dependencies.

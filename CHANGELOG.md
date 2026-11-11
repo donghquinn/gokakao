@@ -6,33 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Changed
+## [0.9.0] - 2026-11-11
 
-API review before v1.0.0 (breaking against earlier development commits):
-
-- Security events: `EventDetail` → `SecurityEventDetail`, `EventSubject` →
-  `SecurityEventSubject`, and the event constants are typed
-  `SecurityEventType` values named `SecurityEvent…`. `SecurityEvent.AppID`
-  is an `int64`.
-- Webhook callbacks return an `error`, and handlers accept options such as
-  `WithErrorHandler`. A callback error makes Kakao retry security events
-  (503); unlink callbacks still reply 200 as Kakao requires.
-- `template.Template` can no longer be implemented outside the package.
-- Push: `Device.UUID`/`PushToken.UUID` → `UserID int64`; `Tokens` takes a
-  slice; `Deregister` takes `*DeregisterOptions`; `APNsEnv` and `FCMPriority`
-  types. `webhook.PushFailure.UserID` and `webhook.UnlinkEvent.AppID` are
-  `int64`.
-- Calendar: `EventTime.StartAt`/`EndAt` are `time.Time` (`FormatEventTime`
-  removed); `UpdateEvent`, `UpdateGuestEvent` and `DeleteEvent` take changes
-  plus `*…Options`; `PublicEvents` takes `PublicEventsQuery`; `Task.TaskID` →
-  `Task.ID` with a `TaskStatus` type; the list filter is `TaskStatusFilter`
-  and `TasksQuery.Conditions`.
-- Map: `TransformCoord` takes `*CoordOptions`; `StaticMap` takes
-  `StaticMapParams` by value with an `ImageFormat` type.
-- `Talk.Profiles` takes `*ProfilesOptions`; `UserIDPage` → `UserIDsPage`;
-  `AuthService.TokenSource` takes `*TokenSourceOptions`;
-  `ShippingAddress.UpdatedAt` and `webhook.ChannelEvent.UpdatedAt` are
-  `kakao.Time`, which now also decodes Unix seconds.
+First release. The core API is a v1.0.0 candidate; it may still change
+before v1.0.0 if live use shows a mismatch with the Kakao API.
 
 ### Added
 
@@ -89,3 +66,6 @@ API review before v1.0.0 (breaking against earlier development commits):
 - `Error` and `OAuthError` types, and sentinel errors for common Kakao error codes.
 - Opt-in retries for idempotent requests, with exponential backoff, full jitter
   and `Retry-After` support.
+
+[Unreleased]: https://github.com/donghquinn/gokakao/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/donghquinn/gokakao/releases/tag/v0.9.0

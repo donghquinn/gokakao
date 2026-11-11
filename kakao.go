@@ -21,7 +21,7 @@ import (
 )
 
 // Version is the library version reported in the User-Agent header.
-const Version = "0.0.0-dev"
+const Version = "0.9.0"
 
 // Host identifies one of the Kakao API hosts.
 type Host int

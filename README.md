@@ -5,8 +5,8 @@
 
 A Go client for the [Kakao Developers](https://developers.kakao.com/docs/ko) REST APIs.
 
-> **Status: release candidate.** All non-advertising Kakao Developers REST APIs
-> are implemented and the API has been reviewed for v1.0.0. It may still change
+> **Status: v0.9.0, release candidate.** All Kakao Developers REST APIs are
+> implemented and the core API has been reviewed for v1.0.0. It may still change
 > until v1.0.0 is tagged. See [PLAN.md](PLAN.md) for the roadmap.
 
 - No dependencies outside the standard library

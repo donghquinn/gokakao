@@ -1,5 +1,7 @@
 # gokakao/keywordad
 
+**English** | [한국어](./README.ko.md)
+
 [![Go Reference](https://pkg.go.dev/badge/github.com/donghquinn/gokakao/keywordad.svg)](https://pkg.go.dev/github.com/donghquinn/gokakao/keywordad)
 
 A Go client for the [Kakao Keyword Ad (카카오 키워드광고) API](https://developers.kakao.com/docs/ko/keyword-ad/common),
@@ -23,7 +25,7 @@ campaigns, err := ka.Campaigns.List(ctx, adAccountID, nil)
 report, err := ka.Reports.Campaigns(ctx, adAccountID, keywordad.ReportQuery{...})
 ```
 
-Every call takes the ad account ID, which is sent as the `adAccountId` header.
+Calls scoped to an ad account take its ID, which is sent as the `adAccountId` header.
 Errors are `*kakao.Error`; Keyword Ad's detailed error is in `Extras`:
 
 ```go
@@ -47,7 +49,7 @@ types have a `Changes()` method that starts from the current values:
 g, _ := ka.AdGroups.Get(ctx, adAccountID, adGroupID)
 changes := g.Changes()
 changes.Name = "새 이름"
-err := ka.AdGroups.Update(ctx, adAccountID, adGroupID, changes)
+_, err := ka.AdGroups.Update(ctx, adAccountID, adGroupID, changes)
 ```
 
 Kakao rate-limits many endpoints (e.g. one create per 5 seconds); the limits are

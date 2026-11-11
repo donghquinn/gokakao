@@ -1,9 +1,15 @@
 # gokakao
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/donghquinn/gokakao.svg)](https://pkg.go.dev/github.com/donghquinn/gokakao)
-[![Test](https://github.com/donghquinn/gokakao/actions/workflows/test.yml/badge.svg)](https://github.com/donghquinn/gokakao/actions/workflows/test.yml)
+**English** | [한국어](./README.ko.md)
 
-A Go client for the [Kakao Developers](https://developers.kakao.com/docs/ko) REST APIs.
+[![Go Reference](https://pkg.go.dev/badge/github.com/donghquinn/gokakao.svg)](https://pkg.go.dev/github.com/donghquinn/gokakao)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/donghquinn/gokakao)](https://go.dev/)
+[![Test](https://github.com/donghquinn/gokakao/actions/workflows/test.yml/badge.svg)](https://github.com/donghquinn/gokakao/actions/workflows/test.yml)
+[![License](https://img.shields.io/github/license/donghquinn/gokakao)](./LICENSE)
+
+A Go client for the [Kakao Developers](https://developers.kakao.com/docs/ko) REST APIs: Kakao Login and
+OpenID Connect, KakaoTalk Message/Social/Channel, Talk Calendar, Push, Kakao Map, Daum Search,
+Business Auth, webhooks, and the Kakao Moment and Keyword Ad advertising APIs.
 
 > **Status: v0.9.0, release candidate.** All Kakao Developers REST APIs are
 > implemented and the core API has been reviewed for v1.0.0. It may still change
@@ -13,6 +19,15 @@ A Go client for the [Kakao Developers](https://developers.kakao.com/docs/ko) RES
 - Typed errors for Kakao error codes (`errors.Is(err, kakao.ErrInvalidToken)`)
 - Opt-in retries for idempotent requests, with backoff and jitter
 - Context support on every call
+- ID token and Security Event Token verification (RS256, JWKS cache)
+
+## Modules
+
+| Module | Version | Contents |
+|---|---|---|
+| `github.com/donghquinn/gokakao` | v0.9.0 | Core client: login, user, talk, channel, calendar, push, map, search, business auth; packages `template` and `webhook` |
+| [`github.com/donghquinn/gokakao/keywordad`](keywordad/README.md) | v0.1.0 | Kakao Keyword Ad API (65 endpoints) |
+| [`github.com/donghquinn/gokakao/moment`](moment/README.md) | v0.1.0 | Kakao Moment API (145 endpoints) |
 
 ## Install
 
@@ -22,7 +37,38 @@ go get github.com/donghquinn/gokakao
 
 Requires Go 1.26 or later.
 
+## Quick start
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	kakao "github.com/donghquinn/gokakao"
+)
+
+func main() {
+	c, err := kakao.NewClient(kakao.WithRESTKey(os.Getenv("KAKAO_REST_KEY")))
+	if err != nil {
+		log.Fatal(err)
+	}
+	res, err := c.Search.Web(context.Background(), "카카오", &kakao.SearchOptions{Size: 3})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, d := range res.Documents {
+		fmt.Println(d.Title, d.URL)
+	}
+}
+```
+
 ## Usage
+
+A `Client` holds the app credentials and is safe for concurrent use; create one per app and share it.
 
 ```go
 import kakao "github.com/donghquinn/gokakao"
@@ -33,6 +79,9 @@ c, err := kakao.NewClient(
 	kakao.WithClientSecret(os.Getenv("KAKAO_CLIENT_SECRET")), // optional
 )
 ```
+
+Calls that accept either a user's access token or the admin key take a `Subject`:
+`kakao.AccessToken(token)` to act as the user, or `kakao.AsAdmin(userID)` to act on any linked user.
 
 ### Kakao Login
 
@@ -92,6 +141,8 @@ res, err := c.Talk.SendToFriends(ctx, accessToken, []string{friend.UUID}, msg)
 rel, err := c.Channel.Relations(ctx, kakao.AsAdmin(userID), "_ZeUTxl")
 ```
 
+Friend messages go to at most 5 friends at a time. When only some friends fail, the call does not return an error; the failures are in `res.FailureInfo`.
+
 | Method | Kakao API |
 |---|---|
 | `Talk.SendToMe`, `SendCustomToMe`, `SendScrapToMe` | 나에게 보내기 (기본 / 사용자 정의 / 스크랩) |
@@ -122,6 +173,8 @@ err = c.Push.Send(ctx, []int64{userID}, kakao.PushMessage{
 }, nil)
 ```
 
+Updates keep the fields you leave out. To remove a value, put its field name in `Clear`.
+
 | Service | Methods |
 |---|---|
 | `Calendar` (user) | `Calendars`, `CreateCalendar`, `UpdateCalendar`, `DeleteCalendar`, `CreateEvent`, `Events`, `AllEvents`, `Event`, `UpdateEvent`, `DeleteEvent`, `UpdateGuestEvent`, `FollowPublicEvent`, `Subscribe`, `Unsubscribe` |
@@ -151,6 +204,8 @@ mux.Handle("/kakao/share", webhook.ShareHandler(primaryAdminKey, onShare))
 mux.Handle("POST /kakao/push-failed/{secret}", webhook.PushFailureHandler(onPushFailure))
 ```
 
+Kakao expects a response within 3 seconds, so hand slow work to a queue and return. If the account status callback returns an error, the handler replies 503 and Kakao retries.
+
 | Webhook | Handler / parser | Authentication |
 |---|---|---|
 | 연결 해제 (unlink) | `UnlinkHandler` / `ParseUnlink` | primary admin key header |
@@ -170,6 +225,8 @@ tok, err := c.Business.Exchange(ctx, code, redirectURI) // no expiry; valid unti
 info, err := c.Business.TokenInfo(ctx, tok.AccessToken)
 _, err = c.Business.Revoke(ctx, tok.AccessToken)
 ```
+
+Business tokens do not expire; they stay valid until revoked.
 
 Business user info (`/v1/business/userinfo`) is not supported; Kakao ends it on 2026-11-30.
 
@@ -198,6 +255,8 @@ route, err := c.Map.WalkingRoute(ctx, pangyo, kakao.Point{X: 127.1263, Y: 37.419
 img, err := c.Map.StaticMap(ctx, kakao.StaticMapParams{Width: 640, Height: 480, Center: &pangyo})
 ```
 
+`X` in `Point` is the longitude and `Y` the latitude.
+
 | Method | Kakao API |
 |---|---|
 | `SearchAddress` | 주소 검색 (address → coordinates) |
@@ -221,6 +280,19 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 }
 ```
 
+-401 means the token must be refreshed and -402 that more consent is needed. `ErrRateLimited` matches -10, HTTP 429 and KOE237.
+
+### Advertising APIs
+
+```go
+import "github.com/donghquinn/gokakao/keywordad"
+
+ka := keywordad.New(c, businessToken) // token from c.Business.Exchange
+accounts, err := ka.AdAccounts.List(ctx, nil)
+```
+
+See [keywordad](keywordad/README.md) and [moment](moment/README.md).
+
 ## Supported APIs
 
 | Product | Status |
@@ -240,6 +312,12 @@ case errors.Is(err, kakao.ErrRateLimited):     // -10, HTTP 429, or KOE237
 make test                                                      # unit tests, no network
 KAKAO_REST_KEY=... go test -tags=integration -run Integration . # live API
 ```
+
+The live tests only call read-only APIs. Set `KAKAO_ADMIN_KEY` and `KAKAO_ACCESS_TOKEN` as well to cover admin and user APIs; tests whose credentials are missing are skipped.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 

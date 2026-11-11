@@ -1,5 +1,7 @@
 # gokakao/moment
 
+**English** | [한국어](./README.ko.md)
+
 [![Go Reference](https://pkg.go.dev/badge/github.com/donghquinn/gokakao/moment.svg)](https://pkg.go.dev/github.com/donghquinn/gokakao/moment)
 
 A Go client for the [Kakao Moment (카카오모먼트) API](https://developers.kakao.com/docs/ko/kakaomoment/common),
@@ -20,10 +22,10 @@ m := moment.New(kc, businessToken)
 
 accounts, err := m.AdAccounts.List(ctx, nil)
 campaigns, err := m.Campaigns.List(ctx, adAccountID, nil)
-report, err := m.Reports.Campaigns(ctx, adAccountID, moment.ReportQuery{...})
+report, err := m.Reports.Campaigns(ctx, adAccountID, []int64{campaignID}, moment.ReportQuery{...})
 ```
 
-Every call takes the ad account ID, which is sent as the `adAccountId` header.
+Calls scoped to an ad account take its ID, which is sent as the `adAccountId` header.
 Errors are `*kakao.Error`; Kakao Moment's detailed error is in `Extras`:
 
 ```go
@@ -52,7 +54,7 @@ types have a `Changes()` method that starts from the current values:
 c, _ := m.Campaigns.Get(ctx, adAccountID, campaignID)
 changes := c.Changes()
 changes.Name = "새 이름"
-err := m.Campaigns.Update(ctx, adAccountID, campaignID, changes)
+_, err := m.Campaigns.Update(ctx, adAccountID, campaignID, changes)
 ```
 
 Kakao rate-limits many endpoints (e.g. one create per 5 seconds); the limits are
